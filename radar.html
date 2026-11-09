@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Le ciel d’ici · Schiltigheim</title>
+<style>
+  :root { color-scheme: dark; font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; background: #111321; color: #f6eff0; --muted: #bcb9cc; --accent: #ffd6ac; --line: #39384c; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100svh; background: radial-gradient(ellipse at 75% 0, #39304c 0, transparent 50%), radial-gradient(ellipse at 3% 28%, #27223c 0, transparent 54%), #111321; }
+  main { width: min(1320px, 100%); margin: auto; padding: clamp(16px, 4vw, 54px); }
+  .masthead { display: flex; align-items: end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 25px; }
+  .eyebrow { margin: 0; color: var(--muted); font-size: 13px; font-weight: 600; letter-spacing: .015em; }
+  .masthead .eyebrow { color: var(--accent); }
+  h1 { margin: 6px 0; font-size: clamp(40px, 6vw, 76px); font-weight: 650; line-height: 1; letter-spacing: -.05em; }
+  .intro { margin: 12px 0 0; color: var(--muted); font-size: 16px; }
+  .controls, .top, .map-tools { display: flex; align-items: center; gap: 8px; }
+  .controls { flex-wrap: wrap; }
+  button { font: inherit; cursor: pointer; }
+  .controls button, #exit-fullscreen, #range, #nearest { color: #f1eaf4; border: 1px solid #514761; border-radius: 999px; background: #2a263a; min-height: 38px; padding: 0 13px; font-size: 13px; }
+  button:hover:not(:disabled) { border-color: #b1c7da; }
+  button:focus-visible { outline: 2px solid #fff1b1; outline-offset: 3px; }
+  button:disabled { opacity: .5; cursor: default; }
+  .controls button[aria-pressed="true"] { color: var(--accent); border-color: #a38351; background: #332c25; }
+  .frame { display: grid; grid-template-columns: minmax(0, 1fr) minmax(230px, .36fr); border: 1px solid var(--line); border-radius: 24px; overflow: hidden; background: #201f32; box-shadow: 0 18px 64px #0005; }
+  .top { grid-column: 1 / -1; justify-content: space-between; min-height: 56px; padding: 6px 18px; background: #242135; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .location { display: flex; align-items: center; gap: 8px; }
+  .location::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 13px #f5d2989c; }
+  #mode { color: #d1c2f2; }
+  .map { aspect-ratio: 320 / 149; position: relative; overflow: hidden; background: radial-gradient(ellipse at 49% 49%, #393a57 0, #292c47 52%, #1b2035 100%); }
+  .map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map-label { font-size: 7px; fill: #e1d9e8; paint-order: stroke; stroke: #2d304b; stroke-width: 1.8px; stroke-linejoin: round; }
+  .status { position: absolute; right: 9px; bottom: 9px; color: #e5ddef; font-size: 12px; padding: 5px 9px; border-radius: 999px; background: #211f34; pointer-events: none; }
+  .plane { position: absolute; width: 38px; height: 38px; translate: -50% -50%; display: grid; place-items: center; background: #1e243b; border: 1px solid #b8d6ff; border-radius: 50%; color: #e5f2ff; padding: 0; box-shadow: 0 2px 8px #141222b0; }
+  .plane svg { width: 24px; height: 24px; }
+  .plane[aria-pressed="true"] { color: #271e2c; border-color: #ffe2c4; background: var(--accent); box-shadow: 0 0 0 4px #ffd6ac38, 0 0 22px #ffd6ac5c; z-index: 1; }
+  .plane-label { position: absolute; top: calc(100% + 7px); left: 50%; translate: -50% 0; padding: 3px 8px; border-radius: 999px; color: #2c2030; background: var(--accent); white-space: nowrap; font-size: 12px; font-weight: 700; pointer-events: none; }
+  .plane-label.above { top: auto; bottom: calc(100% + 7px); }
+  .card { min-width: 0; padding: clamp(13px, 2vw, 26px); border-left: 1px solid var(--line); }
+  .identity { display: grid; gap: 2px; margin: 7px 0 14px; }
+  #flight { color: var(--accent); font-size: clamp(25px, 3.2vw, 44px); font-weight: 650; line-height: 1.05; letter-spacing: -.035em; overflow-wrap: anywhere; }
+  #company { color: #d6cde0; font-size: 15px; }
+  #route { display: grid; grid-template-columns: minmax(0, 1fr) 15px minmax(0, 1fr); gap: 5px; align-items: start; }
+  #route[hidden] { display: none; }
+  .airport-name { display: block; font-size: 16px; overflow-wrap: anywhere; }
+  .airport-code { display: block; margin-top: 3px; color: var(--muted); font-size: 12px; }
+  .route-arrow { color: var(--accent); }
+  #route-status, #metrics { color: var(--muted); font-size: 14px; }
+  #metrics { margin-top: 14px; }
+  .traffic { margin-top: 17px; padding-top: 12px; border-top: 1px solid var(--line); }
+  .traffic-head { display: flex; align-items: center; justify-content: space-between; gap: 5px; }
+  #nearest { min-height: 28px; padding: 0 6px; }
+  #traffic-list { display: grid; gap: 4px; margin-top: 6px; }
+  #traffic-list.is-searching { max-height: 190px; overflow: auto; padding: 3px; margin-inline: -3px; }
+  .traffic-flight { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 34px; padding: 4px 10px; border: 1px solid #403b53; border-radius: 10px; color: #e8e0ee; background: #29263b; font-size: 13px; }
+  .traffic-flight[aria-pressed="true"] { color: var(--accent); border-color: #8d744f; }
+  .traffic-name { min-width: 0; text-align: left; overflow-wrap: anywhere; }
+  .traffic-name small { display: block; color: var(--muted); }
+  .traffic-distance { white-space: nowrap; }
+  #flight-search { width: 100%; min-height: 38px; margin-top: 9px; padding: 5px 10px; border: 1px solid #514761; border-radius: 10px; background: #1c192b; color: #f6eff0; font: inherit; font-size: 13px; }
+  #flight-search::placeholder { color: var(--muted); }
+  #search-status { min-height: 1em; margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+  #search-status:empty { display: none; }
+  .note { margin: 12px 0 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+  #exit-fullscreen { display: none; }
+  #display:fullscreen { display: grid; place-content: center; padding: 12px; background: #111321; overflow: auto; }
+  #display:fullscreen .frame { width: min(96vw, 164vh); }
+  #display:fullscreen #exit-fullscreen { display: block; justify-self: end; margin-top: 10px; }
+  .ticket { width: min(560px, calc(100% - 28px)); max-height: calc(100% - 28px); padding: 0; color: #30233a; background: #fff3e7; border: 0; border-radius: 20px; box-shadow: 0 24px 80px #0b0914b0; }
+  .ticket::backdrop { background: #0e0d1cc9; }
+  .ticket-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; padding: 19px 22px; color: #fff4e6; background: #4b3658; }
+  .ticket-head p { margin: 0; font-size: 13px; color: #efd7e9; }
+  .ticket-head h2 { margin: 3px 0; font-size: 30px; line-height: 1.1; letter-spacing: -.035em; }
+  #ticket-close { min-width: 40px; min-height: 40px; border: 1px solid #b49cbf; border-radius: 50%; background: transparent; color: #fff4e6; font-size: 23px; line-height: 1; }
+  .ticket-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 10px; padding: 21px 22px; }
+  .ticket-route[hidden] { display: none; }
+  .ticket-route small { display: block; color: #6a506e; }
+  .ticket-route strong { display: block; font-size: clamp(22px, 5vw, 34px); line-height: 1.2; overflow-wrap: anywhere; }
+  .ticket-route span { overflow-wrap: anywhere; }
+  .ticket-arrow { color: #845268; }
+  #ticket-route-status { margin: 0; padding: 20px 22px; }
+  .ticket-details { margin: 0; padding: 18px 22px 10px; border-top: 1px dashed #b59aaf; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .ticket-details dt { font-size: 12px; color: #6a506e; }
+  .ticket-details dd { margin: 4px 0 0; font-size: clamp(15px, 3.6vw, 22px); font-weight: 700; font-variant-numeric: tabular-nums; }
+  #ticket-note { margin: 0; padding: 4px 22px 19px; color: #6a506e; font-size: 12px; }
+  @media (max-width: 820px) {
+    .frame { grid-template-columns: minmax(0, 1fr); }
+    .card { border-left: 0; border-top: 1px solid var(--line); }
+    #display:fullscreen { place-content: start center; }
+    .plane { width: 30px; height: 30px; }
+    .plane svg { width: 20px; height: 20px; }
+  }
+  @media (max-width: 360px) {
+    main { padding: 8px; }
+    .map-label { font-size: 9px; }
+    .top { padding-inline: 8px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">Observatoire aérien · Alsace</p>
+      <h1>Le ciel d’ici</h1>
+      <p class="intro">Qui traverse le ciel de Schiltigheim, et où va-t-il&nbsp;?</p>
+    </div>
+    <div class="controls" aria-label="Commandes de l’observatoire">
+      <button id="live" aria-pressed="false">Direct</button>
+      <button id="demo" aria-pressed="true">Démo</button>
+      <button id="fullscreen" type="button" aria-controls="display">⛶ Plein écran</button>
+    </div>
+  </header>
+  <div id="display">
+  <section class="frame" aria-label="Observatoire de Schiltigheim">
+    <div class="top"><span class="location">Schiltigheim</span><div class="map-tools"><span id="mode">Démo</span><button id="range" type="button">100 km</button></div></div>
+    <div class="map" role="group" aria-label="Carte orientée nord avec le Rhin, Strasbourg et l’aéroport d’Entzheim">
+      <svg viewBox="0 0 320 149" aria-hidden="true">
+        <defs>
+          <pattern id="chart-grid" width="16" height="16" patternUnits="userSpaceOnUse">
+            <path d="M16 0H0V16" stroke="#ac9cc5" stroke-width=".25" fill="none" opacity=".17"/>
+            <circle cx="0" cy="0" r=".55" fill="#c9b8e6" opacity=".26"/>
+          </pattern>
+        </defs>
+        <rect width="320" height="149" fill="url(#chart-grid)"/>
+        <text x="35" y="55" fill="#a8c2d0" opacity=".65" font-size="5.5" letter-spacing="1.5">ALSACE</text>
+        <text x="246" y="91" fill="#a8c2d0" opacity=".65" font-size="5.5" letter-spacing="1.5">ALLEMAGNE</text>
+        <polyline id="rhine" fill="none" stroke="#9aa9dc" stroke-width="1.15" stroke-linejoin="round"/>
+        <line id="sightline" x1="160" y1="75" stroke="#f5d298" stroke-width=".55" stroke-dasharray="2 2" opacity=".7" style="display:none"/>
+        <g id="landmarks"></g>
+        <text class="map-label" x="289" y="17">↑ N</text>
+        <path id="scale-bar" fill="none" stroke="#bad2c7"/>
+        <text class="map-label" id="scale-text" x="9" y="134"></text>
+      </svg>
+      <div id="aircraft"></div>
+      <div class="status" id="status" role="status"></div>
+    </div>
+    <aside class="card" aria-label="Vols visibles">
+      <div aria-live="polite">
+      <p class="eyebrow">Vol sélectionné</p>
+      <div class="identity"><strong id="flight">—</strong><span id="company"></span></div>
+      <div id="route" hidden>
+        <div><strong class="airport-name" id="from-name"></strong><span class="airport-code" id="from-code"></span></div>
+        <span class="route-arrow" aria-label="vers">→</span>
+        <div><strong class="airport-name" id="to-name"></strong><span class="airport-code" id="to-code"></span></div>
+      </div>
+      <div id="route-status">—</div>
+      <div id="metrics">—</div>
+      </div>
+      <div class="traffic">
+        <div class="traffic-head"><p class="eyebrow">À proximité</p><button id="nearest" type="button">Le plus proche</button></div>
+        <input id="flight-search" type="search" aria-label="Rechercher un vol ou une compagnie" placeholder="Vol ou compagnie…" maxlength="60" autocomplete="off">
+        <p id="search-status" role="status"></p>
+        <div id="traffic-list"></div>
+      </div>
+    </aside>
+  </section>
+  <button id="exit-fullscreen" type="button">Quitter le plein écran</button>
+  <dialog class="ticket" id="ticket" aria-labelledby="ticket-title">
+    <div class="ticket-head">
+      <div><p>Billet de vol</p><h2 id="ticket-title"></h2><p id="ticket-company"></p></div>
+      <form method="dialog"><button id="ticket-close" aria-label="Fermer le billet" autofocus>×</button></form>
+    </div>
+    <div class="ticket-route" id="ticket-route" hidden>
+      <div><small>Départ</small><strong id="ticket-from"></strong><span id="ticket-from-name"></span></div>
+      <span class="ticket-arrow" aria-hidden="true">✈</span>
+      <div><small>Destination</small><strong id="ticket-to"></strong><span id="ticket-to-name"></span></div>
+    </div>
+    <p id="ticket-route-status" role="status"></p>
+    <dl class="ticket-details">
+      <div><dt>Distance à vol d’oiseau</dt><dd id="ticket-distance">—</dd></div>
+      <div><dt>Temps restant estimé</dt><dd id="ticket-duration">—</dd></div>
+      <div><dt>Arrivée estimée</dt><dd id="ticket-arrival">—</dd></div>
+    </dl>
+    <p id="ticket-note"></p>
+  </dialog>
+  </div>
+  <p class="note" id="fullscreen-error" role="status" hidden></p>
+  <p class="note" id="note" role="status"></p>
+</main>
+<script>
+  const byId = id => document.getElementById(id);
+  const format = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 });
+  const arrivalTime = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
+  const arrivalDay = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', day: 'numeric', month: 'short' });
+  const center = { lat: 48.60749, lon: 7.74931 };
+  const eastPerDegree = 111.2 * Math.cos(center.lat * Math.PI / 180);
+  const svgNamespace = 'http://www.w3.org/2000/svg';
+  // Rhin simplifié à partir des données Natural Earth, domaine public.
+  const rhine = [
+    [47.55, 7.68], [47.57, 7.58], [47.62, 7.57], [47.68, 7.52], [47.78, 7.53],
+    [47.87, 7.56], [47.97, 7.62], [48.05, 7.58], [48.11, 7.58], [48.18, 7.61],
+    [48.24, 7.68], [48.29, 7.70], [48.34, 7.75], [48.39, 7.74], [48.44, 7.75],
+    [48.49, 7.77], [48.52, 7.81], [48.55, 7.80], [48.5826, 7.8013], [48.6153, 7.8097],
+    [48.659, 7.8518], [48.6986, 7.9228], [48.73, 7.963], [48.76, 8.009],
+    [48.79, 8.047], [48.82, 8.10], [48.90, 8.15], [48.965, 8.23], [49.01, 8.28],
+    [49.11, 8.36], [49.23, 8.39], [49.38, 8.50], [49.53, 8.43], [49.73, 8.41]
+  ];
+  const landmarks = [
+    { name: 'Schiltigheim', lat: center.lat, lon: center.lon, dx: -10, dy: -10, kind: 'center' },
+    { name: 'Strasbourg', lat: 48.583, lon: 7.745, dx: 17, dy: 12 },
+    { name: 'Entzheim · SXB', lat: 48.542, lon: 7.634, dx: -12, dy: 19, kind: 'airport' },
+    { name: 'Rhin', lat: 48.71, lon: 7.946, dx: 5, dy: -4, kind: 'river' },
+    { name: 'Colmar', lat: 48.079, lon: 7.359, dx: -6, dy: 4, overview: true },
+    { name: 'Karlsruhe', lat: 49.006, lon: 8.404, dx: 6, dy: 3, overview: true },
+    { name: 'Offenburg', lat: 48.471, lon: 7.945, dx: 20, dy: 24, overview: true }
+  ];
+  const samples = [
+    { id: 'a', callsign: 'AFR1234', east: 4, north: 3, altitude: 12400, heading: 180, speed: 390,
+      route: { number: 'AF1234', company: 'Air France', from: 'CDG', to: 'NCE', fromName: 'Paris', toName: 'Nice', toLat: 43.66, toLon: 7.22 } },
+    { id: 'b', callsign: 'DLH401', east: -12, north: 11, altitude: 28000, heading: 30, speed: 370,
+      route: { number: 'LH401', company: 'Lufthansa', from: 'JFK', to: 'FRA', fromName: 'New York', toName: 'Francfort', toLat: 50.04, toLon: 8.57 } },
+    { id: 'c', callsign: 'EZY72X', east: 58, north: -40, altitude: 18900, heading: 315 }
+  ].map(plane => ({
+    ...plane, distance: Math.hypot(plane.east, plane.north),
+    lat: center.lat + plane.north / 111.2, lon: center.lon + plane.east / eastPerDegree
+  }));
+
+  let mode = 'demo', planes = [], selected, timer, generation = 0, detailRequest = 0;
+  let mapStatus = '';
+  let range = 100;
+  const details = new Map();
+  let searchTimer, searchRevision = 0, searching = false;
+  const ticket = byId('ticket');
+
+  function destinationDistance(plane, route) {
+    if (![plane.lat, plane.lon, route?.toLat, route?.toLon].every(Number.isFinite)) return null;
+    const radians = Math.PI / 180;
+    const a = Math.sin((route.toLat - plane.lat) * radians / 2) ** 2 +
+      Math.cos(plane.lat * radians) * Math.cos(route.toLat * radians) *
+      Math.sin((route.toLon - plane.lon) * radians / 2) ** 2;
+    return 12742 * Math.asin(Math.sqrt(Math.min(1, a)));
+  }
+
+  function renderTicket(plane, route, hasRoute, message) {
+    byId('ticket-title').textContent = route?.number || plane.callsign || 'Vol non identifié';
+    byId('ticket-company').textContent = route?.company || 'Compagnie inconnue';
+    byId('ticket-route').hidden = !hasRoute;
+    byId('ticket-route-status').hidden = hasRoute;
+    byId('ticket-route-status').textContent = message;
+    for (const end of ['from', 'to']) {
+      byId('ticket-' + end).textContent = route?.[end] || '';
+      byId('ticket-' + end + '-name').textContent = route?.[end + 'Name'] || '';
+    }
+    const distance = destinationDistance(plane, route);
+    byId('ticket-distance').textContent = distance === null ? '—' : format.format(Math.round(distance)) + ' km';
+    const observedAt = mode === 'demo' ? Date.now() : plane.observedAt;
+    const canEstimate = distance !== null && !mapStatus && Number.isFinite(plane.speed) && plane.speed > 0 &&
+      Number.isFinite(observedAt) && Date.now() - observedAt < 90000;
+    const minutes = canEstimate ? Math.ceil(distance / (plane.speed * 1.852) * 60) : 0;
+    byId('ticket-duration').textContent = !canEstimate ? '—' : minutes < 60
+      ? minutes + ' min' : Math.floor(minutes / 60) + ' h ' + String(minutes % 60).padStart(2, '0');
+    const arrival = observedAt + minutes * 60000;
+    byId('ticket-arrival').textContent = canEstimate ? arrivalTime.format(arrival) +
+      (arrivalDay.format(arrival) === arrivalDay.format(observedAt) ? '' : ' · ' + arrivalDay.format(arrival)) : '—';
+    const explanation = canEstimate
+      ? 'Heure de Paris. Estimation en ligne droite à la vitesse actuelle, sans tenir compte de l’approche.'
+      : 'Estimation indisponible sans destination, vitesse et position récentes.';
+    byId('ticket-note').textContent = (mode === 'demo' ? 'Vol fictif. ' : '') + explanation;
+  }
+
+  function project(east, north) {
+    const scale = 65 / range;
+    return [160 + east * scale, 75 - north * scale];
+  }
+
+  function projectLocation(lat, lon) {
+    return project((lon - center.lon) * eastPerDegree, (lat - center.lat) * 111.2);
+  }
+
+  function svgElement(tag, attributes) {
+    const element = document.createElementNS(svgNamespace, tag);
+    for (const [key, value] of Object.entries(attributes)) element.setAttribute(key, value);
+    return element;
+  }
+
+  function drawMap() {
+    byId('rhine').setAttribute('points', rhine.map(([lat, lon]) => projectLocation(lat, lon).join(',')).join(' '));
+    const group = byId('landmarks');
+    group.replaceChildren();
+    for (const { name, lat, lon, dx, dy, kind, overview } of landmarks) {
+      if (overview && range === 30) continue;
+      const [x, y] = projectLocation(lat, lon);
+      const color = kind === 'center' ? '#b4f2d0' : kind === 'airport' ? '#f1ce89' : '#a2beb2';
+      if (kind !== 'river') {
+        const marker = kind === 'airport'
+          ? svgElement('rect', { x: x - 2, y: y - 2, width: 4, height: 4, fill: color })
+          : svgElement('circle', { cx: x, cy: y, r: kind === 'center' ? 3 : 2, fill: color });
+        group.append(svgElement('path', { d: 'M' + x + ',' + y + 'L' + (x + dx) + ',' + (y + dy - 3), stroke: '#739189', opacity: '.7' }), marker);
+      }
+      const label = svgElement('text', { x: x + dx, y: y + dy, class: 'map-label', 'text-anchor': dx < 0 ? 'end' : 'start' });
+      label.textContent = name;
+      group.append(label);
+    }
+    const scaleKm = range === 100 ? 50 : 10;
+    byId('scale-text').textContent = scaleKm + ' km';
+    byId('scale-bar').setAttribute('d', 'M9 137v4h' + (65 * scaleKm / range) + 'v-4');
+    const button = byId('range');
+    button.textContent = range + ' km';
+    button.setAttribute('aria-label', 'Portée ' + range + ' km. Passer à ' + (range === 100 ? 30 : 100) + ' km');
+  }
+
+  function visiblePlanes() {
+    return planes.filter(plane => plane.distance <= range);
+  }
+
+  async function read(path, timeout = 8500) {
+    const response = await fetch(path, { signal: AbortSignal.timeout(timeout) });
+    if (!response.ok) throw new Error('Données indisponibles');
+    return response.json();
+  }
+
+  function callsignOf(plane) {
+    return plane.callsign.trim().toUpperCase();
+  }
+
+  function cachedDetail(plane) {
+    if (mode === 'demo') return plane.route;
+    const entry = details.get(callsignOf(plane));
+    return entry?.until > Date.now() ? entry.route : undefined;
+  }
+
+  function lookupDetail(plane) {
+    const callsign = callsignOf(plane);
+    if (!/^[A-Z0-9]{2,10}$/.test(callsign)) return Promise.resolve(null);
+    const cached = details.get(callsign);
+    if (cached?.until > Date.now()) return cached.pending ?? Promise.resolve(cached.route);
+    const entry = { until: Date.now() + 3600000 };
+    entry.pending = read('/trajet?vol=' + encodeURIComponent(callsign), 14500).then(route => {
+      entry.route = route;
+      delete entry.pending;
+      return route;
+    }).catch(error => {
+      if (details.get(callsign) === entry) details.delete(callsign);
+      throw error;
+    });
+    if (details.size >= 200) details.delete(details.keys().next().value);
+    details.set(callsign, entry);
+    return entry.pending;
+  }
+
+  function normalizeSearch(value) {
+    return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  }
+
+  function searchTerm() {
+    return normalizeSearch(byId('flight-search').value);
+  }
+
+  function unknownFlights() {
+    return visiblePlanes().filter(plane => cachedDetail(plane) === undefined && /^[A-Z0-9]{2,10}$/.test(callsignOf(plane)));
+  }
+
+  function scheduleSearch() {
+    clearTimeout(searchTimer);
+    searchTimer = undefined;
+    if (mode !== 'live' || searchTerm().length < 2 || searching || !unknownFlights().length) return;
+    searchTimer = setTimeout(enrichSearch, 250);
+  }
+
+  async function enrichSearch() {
+    searchTimer = undefined;
+    const revision = searchRevision;
+    const unknown = unknownFlights();
+    searching = unknown.length > 0;
+    for (let i = 0; i < unknown.length && revision === searchRevision; i += 4) {
+      await Promise.allSettled(unknown.slice(i, i + 4).map(lookupDetail));
+      if (revision === searchRevision) renderTraffic();
+    }
+    searching = false;
+    if (revision !== searchRevision) scheduleSearch();
+    renderTraffic();
+  }
+
+  function activePlane() {
+    const visible = visiblePlanes();
+    return visible.find(plane => plane.id === selected) ?? visible[0];
+  }
+
+  function renderCard(plane, route, message) {
+    byId('flight').textContent = route?.number || plane?.callsign || (plane ? 'Vol non identifié' : 'Ciel calme');
+    byId('company').textContent = route?.company || (plane ? 'Compagnie inconnue' : '');
+    const hasRoute = Boolean((route?.from || route?.fromName) && (route?.to || route?.toName));
+    byId('route').hidden = !hasRoute;
+    byId('route-status').hidden = hasRoute;
+    byId('route-status').textContent = message;
+    if (hasRoute) {
+      for (const end of ['from', 'to']) {
+        const code = route[end] || '';
+        const name = route[end + 'Name'] || code;
+        byId(end + '-name').textContent = name;
+        byId(end + '-name').title = name;
+        byId(end + '-code').textContent = name === code ? '' : code;
+      }
+    }
+    byId('metrics').textContent = plane
+      ? (Number.isFinite(plane.altitude) ? format.format(plane.altitude) + ' ft' : 'Altitude inconnue') +
+        '  ·  ' + format.format(plane.distance) + ' km'
+      : '';
+    if (plane && ticket.dataset.id === plane.id) renderTicket(plane, route, hasRoute, message);
+  }
+
+  async function updateCard(plane) {
+    const request = ++detailRequest;
+    if (!plane) {
+      const message = mapStatus ? 'En attente du flux de positions.' : 'Aucun avion signalé dans cette vue.';
+      return renderCard(null, null, message);
+    }
+    const callsign = callsignOf(plane);
+    if (mode === 'demo' || !/^[A-Z0-9]{2,10}$/.test(callsign)) {
+      return renderCard(plane, plane.route, 'Trajet indisponible');
+    }
+    const cached = cachedDetail(plane);
+    if (cached !== undefined) return renderCard(plane, cached, 'Trajet indisponible');
+    renderCard(plane, null, 'Recherche du trajet…');
+    try {
+      const route = await lookupDetail(plane);
+      if (request === detailRequest) {
+        renderCard(plane, route, 'Trajet indisponible');
+        renderTraffic();
+      }
+    } catch {
+      if (request === detailRequest) renderCard(plane, null, 'Trajet indisponible');
+    }
+  }
+
+  function select(item) {
+    selected = item.id;
+    ticket.dataset.id = item.id;
+    render();
+    ticket.showModal();
+  }
+
+  function restoreFocus(list, focused) {
+    if (focused?.dataset.id) {
+      [...list.children].find(button => button.dataset.id === focused.dataset.id)?.focus({ preventScroll: true });
+    }
+  }
+
+  function renderTraffic() {
+    const traffic = byId('traffic-list');
+    const focused = traffic.contains(document.activeElement) ? document.activeElement : null;
+    const plane = activePlane();
+    const visible = visiblePlanes();
+    const term = searchTerm();
+    const nearby = term ? visible.filter(item => {
+      const detail = cachedDetail(item);
+      return [item.callsign, detail?.number, detail?.company, ...(detail?.airlineCodes ?? [])]
+        .some(value => value && normalizeSearch(value).includes(term));
+    }) : visible.slice(0, 4);
+    if (!term && plane && !nearby.includes(plane)) nearby[nearby.length - 1] = plane;
+    traffic.classList.toggle('is-searching', Boolean(term));
+    const matches = nearby.length + (nearby.length === 1 ? ' vol trouvé' : ' vols trouvés');
+    byId('search-status').textContent = term
+      ? (searching || searchTimer ? matches + ' · recherche en cours…' : nearby.length ? matches : 'Aucun vol correspondant dans cette vue.')
+      : '';
+    traffic.replaceChildren(...nearby.map(item => {
+      const button = document.createElement('button');
+      button.className = 'traffic-flight';
+      button.dataset.id = item.id;
+      button.setAttribute('aria-pressed', String(item === plane));
+      button.setAttribute('aria-haspopup', 'dialog');
+      const detail = cachedDetail(item);
+      const name = document.createElement('span');
+      name.className = 'traffic-name';
+      name.textContent = detail?.number || item.callsign || 'Vol sans indicatif';
+      if (detail?.company) {
+        const company = document.createElement('small');
+        company.textContent = detail.company;
+        name.append(company);
+      }
+      const distance = document.createElement('span');
+      distance.className = 'traffic-distance';
+      distance.textContent = format.format(item.distance) + ' km';
+      button.append(name, distance);
+      button.onclick = () => select(item);
+      return button;
+    }));
+    restoreFocus(traffic, focused);
+  }
+
+  function render() {
+    const plane = activePlane();
+    const list = byId('aircraft');
+    const focused = list.contains(document.activeElement) ? document.activeElement : null;
+    const visible = visiblePlanes();
+    list.replaceChildren(...visible.map(item => {
+      const button = document.createElement('button');
+      button.className = 'plane';
+      button.dataset.id = item.id;
+      const [x, y] = project(item.east, item.north);
+      button.style.left = (x / 320 * 100) + '%';
+      button.style.top = (y / 149 * 100) + '%';
+      button.setAttribute('aria-label', item.callsign || 'Avion à ' + format.format(item.distance) + ' km');
+      button.setAttribute('aria-pressed', String(item === plane));
+      button.setAttribute('aria-haspopup', 'dialog');
+      const icon = svgElement('svg', { viewBox: '0 0 24 24', fill: 'currentColor', 'aria-hidden': 'true' });
+      if (Number.isFinite(item.heading)) {
+        icon.style.rotate = item.heading + 'deg';
+        icon.append(svgElement('path', { d: 'M12 2c.9 0 1.5.8 1.5 1.8v5l7 4.4v2l-7-2.2v4.6l2.3 1.6v1.6L12 19.7l-3.8 1.1v-1.6l2.3-1.6V13l-7 2.2v-2l7-4.4v-5c0-1 .6-1.8 1.5-1.8Z' }));
+      } else {
+        icon.append(svgElement('circle', { cx: 12, cy: 12, r: 4 }));
+      }
+      button.append(icon);
+      if (item === plane && item.callsign) {
+        const label = document.createElement('span');
+        label.className = y > 97 ? 'plane-label above' : 'plane-label';
+        label.textContent = item.callsign;
+        label.setAttribute('aria-hidden', 'true');
+        button.append(label);
+      }
+      button.onclick = () => select(item);
+      return button;
+    }));
+    restoreFocus(list, focused);
+    scheduleSearch();
+    renderTraffic();
+    const sightline = byId('sightline');
+    sightline.style.display = plane ? '' : 'none';
+    if (plane) {
+      const [x, y] = project(plane.east, plane.north);
+      sightline.setAttribute('x2', x);
+      sightline.setAttribute('y2', y);
+    }
+    byId('status').textContent = mapStatus || visible.length + (visible.length === 1 ? ' avion' : ' avions');
+    byId('nearest').disabled = !plane;
+    updateCard(plane);
+  }
+
+  async function refresh(token) {
+    try {
+      const data = await read('/vols');
+      if (token !== generation) return;
+      planes = data.aircraft;
+      if (ticket.open && !planes.some(plane => plane.id === ticket.dataset.id)) {
+        byId('ticket-duration').textContent = byId('ticket-arrival').textContent = '—';
+        byId('ticket-note').textContent = 'Avion hors de la zone suivie. Dernière distance connue.';
+      }
+      if (!ticket.open && !planes.some(plane => plane.id === selected)) selected = undefined;
+      mapStatus = '';
+      byId('note').textContent = 'Dernière réception à ' + new Date(data.updatedAt).toLocaleTimeString('fr-FR') +
+        '. Positions ADSB.lol, trajets ADSBDB par indicatif.';
+    } catch {
+      if (token !== generation) return;
+      mapStatus = planes.length ? 'POSITIONS FIGÉES' : 'SIGNAL INDISPONIBLE';
+      byId('note').textContent = 'Le flux ne répond pas. Nouvelle tentative automatique dans 15 secondes.';
+    }
+    render();
+    timer = setTimeout(() => refresh(token), 15000);
+  }
+
+  function setMode(value) {
+    searchRevision++;
+    clearTimeout(timer);
+    const token = ++generation;
+    mode = value;
+    selected = undefined;
+    planes = value === 'demo' ? samples : [];
+    byId('mode').textContent = value === 'demo' ? 'Démo' : 'En direct';
+    byId('demo').setAttribute('aria-pressed', String(value === 'demo'));
+    byId('live').setAttribute('aria-pressed', String(value === 'live'));
+    mapStatus = value === 'demo' ? '' : 'CONNEXION…';
+    byId('note').textContent = value === 'demo' ? 'Vols fictifs. Choisis un avion pour ouvrir son billet.' : 'Recherche des avions autour de Schiltigheim…';
+    render();
+    if (value === 'live') refresh(token);
+  }
+
+  byId('live').onclick = () => { if (mode !== 'live') setMode('live'); };
+  byId('demo').onclick = () => { if (mode !== 'demo') setMode('demo'); };
+  byId('nearest').onclick = () => { selected = undefined; render(); };
+  byId('flight-search').oninput = () => {
+    searchRevision++;
+    scheduleSearch();
+    renderTraffic();
+  };
+  ticket.addEventListener('close', () => { delete ticket.dataset.id; });
+  const display = byId('display');
+  document.addEventListener('fullscreenchange', () => {
+    if (document.fullscreenElement === display) byId('exit-fullscreen').focus();
+    else byId('fullscreen').focus();
+  });
+  byId('fullscreen').onclick = async () => {
+    const error = byId('fullscreen-error');
+    error.hidden = true;
+    try {
+      await display.requestFullscreen();
+    } catch {
+      error.textContent = 'Le navigateur a refusé le plein écran.';
+      error.hidden = false;
+    }
+  };
+  byId('exit-fullscreen').onclick = () => document.exitFullscreen();
+  byId('range').onclick = () => {
+    searchRevision++;
+    range = range === 100 ? 30 : 100;
+    drawMap();
+    render();
+  };
+  drawMap();
+  if (location.protocol === 'file:') {
+    byId('live').disabled = true;
+    byId('live').title = 'Pour le direct, utilise Lancer le radar.cmd';
+  }
+  setMode(location.protocol === 'file:' ? 'demo' : 'live');
+</script>
+</body>
+</html>
