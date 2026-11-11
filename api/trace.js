@@ -17,8 +17,10 @@ export default async function handler(request, response) {
     return reply(response, 400, { error: 'Position ou identifiant invalide' });
   }
   try {
-    reply(response, 200, await flightTrace(hex, { at, lat, lon }, callsign), 20);
-  } catch {
+    const trace = await flightTrace(hex, { at, lat, lon }, callsign);
+    reply(response, 200, trace, trace.segments.length ? 20 : 0);
+  } catch (error) {
+    console.warn('Historique ADS-B', error.errors?.map(cause => cause.cause?.code ?? cause.message) ?? error.message);
     reply(response, 502, { error: 'Historique ADS-B indisponible' });
   }
 }

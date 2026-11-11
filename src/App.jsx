@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
-import { center, distanceKm, knownAirline } from '../lib/flight.js';
+import { center, distanceKm, knownAirline, radius } from '../lib/flight.js';
 import RadarMap, { planePath } from './RadarMap.jsx';
 import { playbackFrames, useReplay } from './replay.js';
+import { buildTraceGeometry } from './traceGeometry.js';
+import { flightDurationLabel } from './flightDuration.js';
+import { reconcileRoute } from '../lib/routeEvidence.js';
+import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 
 const demo = [
   { id: 'demo-af', callsign: 'AFR1234', registration: 'F-GKXJ', type: 'A320', model: 'Airbus A320', lat: 48.78, lon: 7.98, altitude: 12400, heading: 150, speed: 390,
@@ -18,6 +22,12 @@ const clock = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour:
 const preciseClock = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const unit = (value, label) => Number.isFinite(value) ? format.format(value) + ' ' + label : '—';
+
+function ageLabel(at, now) {
+  const seconds = Math.max(0, Math.floor((now - at) / 1000));
+  if (seconds < 5) return 'à l’instant';
+  return seconds < 60 ? 'il y a ' + seconds + ' s' : 'il y a ' + Math.floor(seconds / 60) + ' min';
+}
 
 function PlaneIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d={planePath} /></svg>;
@@ -55,6 +65,7 @@ async function read(url, signal) {
 function useTraffic(mode) {
   const [snapshot, setSnapshot] = useState(null);
   const [failed, setFailed] = useState(false);
+  const [radarHistory, setRadarHistory] = useState(() => new Map());
   useEffect(() => {
     if (mode === 'demo') return;
     const controller = new AbortController();
@@ -64,6 +75,11 @@ function useTraffic(mode) {
         const data = await read('/api/vols', controller.signal);
         if (!controller.signal.aborted) {
           setSnapshot(data);
+          setRadarHistory(history => recordRadarHistory(
+            recordRadarHistory(history, data.previousAircraft ?? [], data.updatedAt),
+            data.aircraft,
+            data.updatedAt
+          ));
           setFailed(false);
         }
       } catch {
@@ -78,7 +94,7 @@ function useTraffic(mode) {
       clearTimeout(timer);
     };
   }, [mode]);
-  return { planes: mode === 'demo' ? demo : snapshot?.aircraft ?? [], snapshot, failed };
+  return { planes: mode === 'demo' ? demo : snapshot?.aircraft ?? [], snapshot, failed, radarHistory };
 }
 
 function lookupParams(plane) {
@@ -95,7 +111,7 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
   const distance = plane && Number.isFinite(destination?.lat) && Number.isFinite(destination?.lon)
     ? distanceKm([plane.lat, plane.lon], [destination.lat, destination.lon]) : null;
   const observedAt = mode === 'demo' ? Date.now() : plane?.observedAt;
-  const minutes = distance !== null && !failed && plane.speed > 0 &&
+  const minutes = distance !== null && !route?.unverified && !failed && plane.speed > 0 &&
     Number.isFinite(observedAt) && Date.now() - observedAt < 90000
     ? Math.ceil(distance / (plane.speed * 1.852) * 60) : null;
   return <section className="ticket" aria-label="Billet du vol sélectionné">
@@ -106,7 +122,8 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
         <AirlineLogo key={airline?.iata} airline={airline} loading="eager" />
       </div>
       <div className="route">
-        {[['Départ', route?.from], ['Arrivée', destination]].map(([label, airport], index) => (
+        {[[route?.observedDeparture ? 'Départ observé' : route?.probableDeparture ? 'Départ probable' : 'Départ annoncé', route?.from],
+          [destination ? 'Arrivée annoncée' : 'Arrivée', destination]].map(([label, airport], index) => (
           <div className="airport" key={label}>
             <p className="label">{label}</p><strong>{airport?.code || '—'}</strong>
             {airport?.name && <span>{airport.name}</span>}
@@ -114,7 +131,14 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
           </div>
         ))}
       </div>
-      {plane && (!route?.from || !destination) && <p className="route-note" role="status">{loading ? 'Recherche du trajet…' : route?.routeUnavailable ? 'Service de trajets indisponible.' : 'Trajet inconnu pour cet indicatif.'}</p>}
+      {plane && (!route?.from || !destination) && <p className="route-note" role="status">{
+        loading ? 'Vérification du trajet…' : route?.routeConflict
+          ? 'Le départ annoncé (' + route.reportedOrigin + ') ne correspond pas ' +
+            (route.probableDeparture ? 'au début de la montée.' : 'à la position au sol.') + ' Arrivée non confirmée.'
+          : route?.observedDeparture || route?.probableDeparture ? 'Arrivée non confirmée.' :
+          route?.routeUnavailable ? 'Service de trajets indisponible.' : 'Trajet inconnu pour cet indicatif.'
+      }</p>}
+      {route?.unverified && <p className="route-note">Itinéraire annoncé. Départ non vérifié par ADS-B.</p>}
       <dl className="metrics">
         <div><dt>Altitude</dt><dd>{unit(plane?.altitude, 'pi')}</dd></div>
         <div><dt>Vitesse sol</dt><dd>{unit(plane?.speed * 1.852, 'km/h')}</dd></div>
@@ -139,31 +163,59 @@ export default function App() {
   const [recenter, setRecenter] = useState(0);
   const [fitRevision, setFitRevision] = useState(0);
   const [following, setFollowing] = useState(false);
+  const [liveSamples, setLiveSamples] = useState([]);
+  const [external, setExternal] = useState(null);
+  const [clockNow, setClockNow] = useState(Date.now);
   const [query, setQuery] = useState('');
   const [detail, setDetail] = useState(null);
   const [trace, setTrace] = useState(null);
+  const [traceAttempt, setTraceAttempt] = useState(0);
   const [searchDetails, setSearchDetails] = useState({});
   const [searching, setSearching] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
   const display = useRef(null);
   const panel = useRef(null);
-  const { planes, snapshot, failed } = useTraffic(mode);
+  const { planes, snapshot, failed, radarHistory } = useTraffic(mode);
   const selected = focus?.plane;
   const params = selected && mode === 'live' ? lookupParams(selected) : '';
-  const route = mode === 'demo' ? selected?.route : detail?.params === params ? detail.data : null;
+  const reportedRoute = detail?.params === params ? detail.data : null;
   const traceParams = mode === 'live' && selected && /^[0-9a-f]{6}$/.test(selected.id) && Number.isFinite(selected.observedAt)
     ? new URLSearchParams({ ...Object.fromEntries(new URLSearchParams(params)), at: selected.observedAt, lat: selected.lat, lon: selected.lon }).toString()
     : '';
   const traceResult = trace?.params === traceParams ? trace.data : null;
-  const segments = mode === 'demo' ? selected?.track : traceResult?.segments;
-  const routeLoading = Boolean(params && detail?.params !== params);
   const traceLoading = Boolean(traceParams && !traceResult);
-  const timestamps = traceResult?.timestamps;
+  const route = useMemo(() => mode === 'demo' ? selected?.route :
+    reconcileRoute(reportedRoute, traceResult?.departure, traceLoading),
+  [mode, selected, reportedRoute, traceResult, traceLoading]);
+  const radarSamples = radarHistory.get(selected?.id);
+  const firstClickSample = focus?.extraSample;
+  const localTrace = useMemo(() => mode === 'live' && selected && !traceResult?.segments?.length ?
+    radarTrace(radarSamples, selected, firstClickSample) : null,
+  [mode, selected, traceResult, radarSamples, firstClickSample]);
+  const segments = mode === 'demo' ? selected?.track : traceResult?.segments?.length ? traceResult.segments : localTrace?.segments;
+  const geometry = useMemo(() => buildTraceGeometry(focus, route, segments), [focus, route, segments]);
+  const routeLoading = Boolean(params && detail?.params !== params);
+  const timestamps = localTrace?.timestamps ?? traceResult?.timestamps;
+  const coverage = timestamps?.length ? { start: timestamps[0][0], end: timestamps.at(-1).at(-1) } : null;
+  const duration = mode === 'demo' && selected?.track ? 'En vol depuis environ ' +
+    (selected.id === 'demo-af' ? '45 min' : '6 h 10 min') :
+    flightDurationLabel(selected?.observedAt, traceResult?.departure?.takeoffAt, coverage?.start);
   const frames = useMemo(() => playbackFrames(segments, timestamps), [segments, timestamps]);
   const replay = useReplay(frames);
   const clearReplay = replay.clear;
-  const tracked = following && !failed ? planes.find(plane => plane.id === selected?.id &&
-    (!plane.callsign || !selected.callsign || plane.callsign === selected.callsign)) : null;
+  const lastSample = liveSamples.at(-1);
+  const landed = Boolean(lastSample?.ground);
+  const localPosition = following && !failed && !landed ?
+    planes.find(plane => isFollowPosition(selected, lastSample, plane)) : null;
+  const outsideId = following && !landed && !localPosition && /^[0-9a-f]{6}$/.test(selected?.id ?? '') ? selected.id : '';
+  const outsideKey = outsideId ? outsideId + ':' + focus.revision : '';
+  const outside = outsideKey && external?.key === outsideKey ? external : null;
+  const outsidePosition = outside?.plane && clockNow - outside.plane.observedAt <= 65000 &&
+    isFollowPosition(selected, lastSample, outside.plane) ? outside.plane : null;
+  const tracked = localPosition ?? outsidePosition;
+  const trail = useMemo(() => liveTrailSegments(liveSamples), [liveSamples]);
+  const livePosition = following ? tracked ?? lastSample : null;
+  const followSource = localPosition ? snapshot?.source : outsidePosition ? outside.source : null;
   const term = searchText(query.trim());
   const callsigns = term && mode === 'live' ? [...new Set(planes.map(plane => plane.callsign)
     .filter(code => /^[A-Z0-9]{2,10}$/.test(code)))].sort().join(',') : '';
@@ -189,7 +241,59 @@ export default function App() {
       if (!controller.signal.aborted) setTrace({ params: traceParams, data: { failed: true } });
     });
     return () => controller.abort();
-  }, [traceParams]);
+  }, [traceParams, traceAttempt]);
+
+  const needsFirstClickSample = mode === 'live' && Boolean(selected && /^[a-f0-9]{6}$/.test(selected.id) && !segments?.length);
+  useEffect(() => {
+    if (!needsFirstClickSample) return;
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const { plane } = await read('/api/suivi?hex=' + selected.id, controller.signal);
+        if (!controller.signal.aborted && isFollowPosition(selected, null, plane) && !plane.ground &&
+            plane.observedAt > selected.observedAt) {
+          setFocus(current => current?.plane === selected ? { ...current, extraSample: plane } : current);
+        }
+      } catch {
+        // The regular radar refresh can still provide the next observation.
+      }
+    }, 2500);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [needsFirstClickSample, selected]);
+
+  useEffect(() => {
+    if (tracked) setLiveSamples(samples => appendLiveSample(samples, tracked));
+  }, [tracked]);
+
+  useEffect(() => {
+    if (!outsideId) return;
+    const controller = new AbortController();
+    let timer;
+    async function update() {
+      try {
+        const data = await read('/api/suivi?hex=' + outsideId, controller.signal);
+        if (!controller.signal.aborted) setExternal({ key: outsideKey, ...data });
+      } catch {
+        if (!controller.signal.aborted) setExternal({ key: outsideKey, failed: true });
+      } finally {
+        if (!controller.signal.aborted) timer = setTimeout(update, 15000);
+      }
+    }
+    update();
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [outsideId, outsideKey]);
+
+  useEffect(() => {
+    if (!following) return;
+    const timer = setInterval(() => setClockNow(Date.now()), 5000);
+    return () => clearInterval(timer);
+  }, [following]);
 
   useEffect(() => {
     if (!callsigns) return;
@@ -230,14 +334,18 @@ export default function App() {
 
   const status = mode === 'demo' ? 'Vols fictifs' : failed ? (snapshot ? 'Positions figées' : 'Signal indisponible') : snapshot ? 'En direct' : 'Connexion au radar…';
   const traceStatus = mode === 'demo' ? 'Trajectoire fictive' :
-    traceLoading ? 'Chargement de la trace ADS-B…' :
-    traceResult?.failed ? 'Historique ADS-B indisponible' :
-    segments?.length ? 'Trace enregistrée' : 'Aucune trace exploitable pour ce vol';
+    localTrace ? 'Trace locale · positions reçues par FLIPPY' :
+    traceLoading ? 'Chargement de l’historique ADS-B…' :
+    traceResult?.failed ? 'Historique externe indisponible · trace locale en cours' :
+    traceResult?.source === 'OpenSky' ? 'Trace ADS-B · OpenSky' :
+    segments?.length ? (geometry?.partial ? 'Trace ADS-B partielle' : 'Trace enregistrée') : 'Aucune trace exploitable pour ce vol';
 
   const choosePlane = useCallback(plane => {
     const latest = planes.find(item => item.id === plane.id) ?? plane;
     clearReplay();
     setFollowing(false);
+    setLiveSamples([]);
+    setExternal(null);
     setShowTraffic(false);
     setFocus(previous => ({ plane: latest, revision: (previous?.revision ?? 0) + 1 }));
   }, [planes, clearReplay]);
@@ -245,6 +353,8 @@ export default function App() {
   function returnToRadar() {
     replay.clear();
     setFollowing(false);
+    setLiveSamples([]);
+    setExternal(null);
     setFocus(null);
     setRecenter(value => value + 1);
   }
@@ -252,7 +362,17 @@ export default function App() {
   function toggleFollowing() {
     replay.clear();
     if (following) setFitRevision(value => value + 1);
+    else {
+      setClockNow(Date.now());
+      setExternal(null);
+      setLiveSamples(samples => samples.length ? samples : appendLiveSample([], selected));
+    }
     setFollowing(!following);
+  }
+
+  function retryTrace() {
+    setTrace(null);
+    setTraceAttempt(attempt => attempt + 1);
   }
 
   function showReplay() {
@@ -280,8 +400,12 @@ export default function App() {
 
   return <main className="app" ref={display}>
     <section className="map-wrap" aria-label="Carte interactive des avions autour de Schiltigheim">
-      <RadarMap planes={planes} focus={focus} route={route} segments={segments} onSelect={choosePlane} fitReady={!routeLoading && !traceLoading}
-        recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked} replay={replay.frame} />
+      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage}
+        flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
+        flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
+        onSelect={choosePlane} fitReady={!routeLoading && (!traceLoading || Boolean(localTrace))} localTrace={Boolean(localTrace)}
+        recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked}
+        livePosition={livePosition} trail={trail} replay={replay.frame} />
     </section>
     <header className="masthead">
       <div className="masthead-identity">
@@ -305,15 +429,21 @@ export default function App() {
       <span className="live-dot" />{status}<span className="signal-detail">· 100 km</span>
       {mode === 'live' && snapshot && <a href={snapshot.source === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{snapshot.source} · {clock.format(snapshot.updatedAt)}</a>}
     </div>
-    {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour voir son trajet</p>}
+    {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
     {(focus || showTraffic) && <aside className="flight-column" ref={panel} aria-label="Informations sur les vols">
       {focus && <div className="flight-panel">
         <div className="panel-header"><button type="button" onClick={returnToRadar}><Icon name="back" /> Radar</button><span>Position au clic {selected.observedAt ? '· ' + preciseClock.format(selected.observedAt) : ''}</span></div>
-        <FlightTicket plane={selected} route={route} loading={routeLoading} mode={mode} failed={mode === 'live' && failed} />
+        <FlightTicket plane={selected} route={route} loading={routeLoading || traceLoading} mode={mode} failed={mode === 'live' && failed} />
         <div className="trace-legend" aria-live="polite">
           <span><i className={segments?.length ? 'legend-trace' : 'legend-empty'} />{traceStatus}</span>
-          {(route?.from || route?.to) && <span><i className="legend-guide" />Portion indicative</span>}
+          {geometry?.guides.length > 0 && <span><i className="legend-guide" />Portion indicative</span>}
+          {trail.length > 0 && <span><i className="legend-live" />Positions reçues en direct</span>}
         </div>
+        {coverage && <dl className="trace-coverage">
+          <div><dt>Début de la trace</dt><dd>{preciseClock.format(coverage.start)}</dd></div>
+          <div><dt>Fin de la trace</dt><dd>{preciseClock.format(coverage.end)}</dd></div>
+        </dl>}
+        {traceParams && traceResult && !traceResult.segments?.length && <button type="button" className="retry-trace" onClick={retryTrace}>Réessayer l’historique</button>}
         {(frames.length > 1 || mode === 'live') && <section className="flight-tools" aria-label="Relecture et suivi">
           <div className="flight-tool-buttons">
             {frames.length > 1 && <button type="button" className="replay-button" onClick={() => { showReplay(); replay.toggle(); }}>
@@ -328,11 +458,19 @@ export default function App() {
               onChange={event => { showReplay(); replay.seek(Number(event.target.value) / 1000); }} />
             <output>{replay.frame?.at ? preciseClock.format(replay.frame.at) : replay.frame ? Math.round(replay.progress * 100) + ' %' : 'Relecture accélérée'}</output>
           </div>}
-          {following && <p className="follow-status" role="status">
-            {failed ? 'Signal indisponible. Suivi en pause.' : tracked
-              ? 'Dernière position reçue à ' + preciseClock.format(tracked.observedAt)
-              : 'Vol hors du radar. En attente d’une nouvelle position.'}
-          </p>}
+          {following && <div className="follow-readout">
+            <p className="follow-status" role="status">
+              {landed ? 'Avion reçu au sol · Suivi terminé' : tracked
+                ? tracked.distance > radius ? 'Suivi actif hors du radar local' : 'Suivi actif dans le radar local'
+                : outsideId && !outside ? 'Recherche de l’avion hors du radar…'
+                  : outside?.failed ? 'Source de suivi indisponible'
+                    : 'Aucune nouvelle position reçue'}
+              {followSource && <> · <a href={followSource === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{followSource}</a></>}
+            </p>
+            {livePosition && <p className="follow-freshness">
+              Dernière position reçue à <strong>{preciseClock.format(livePosition.observedAt)}</strong> · {ageLabel(livePosition.observedAt, clockNow)}
+            </p>}
+          </div>}
         </section>}
       </div>}
       {showTraffic && <section className="traffic" aria-labelledby="traffic-title">

@@ -1,15 +1,17 @@
-import { memo, useEffect, useMemo, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, ScaleControl, TileLayer, Tooltip, useMap, ZoomControl } from 'react-leaflet';
 import { divIcon, latLngBounds, point } from 'leaflet';
 import { center, radius, distanceKm } from '../lib/flight.js';
+import { nearLongitude } from './traceGeometry.js';
 
 export const planePath = 'M12 2c1 0 1.6 1.1 1.6 2.3v5.1l7.4 5v1.8l-7.4-2.5v4.5l2.3 1.7v1.5L12 20.3l-3.9 1.1v-1.5l2.3-1.7v-4.5L3 16.2v-1.8l7.4-5V4.3C10.4 3.1 11 2 12 2Z';
 
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const timeLabel = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, fitReady }) {
+function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, fitReady, localFocus }) {
   const map = useMap();
+  const lastLocalFit = useRef(null);
   useEffect(() => {
     const observer = new ResizeObserver(() => map.invalidateSize());
     observer.observe(map.getContainer());
@@ -20,7 +22,9 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
   }, [map, recenter]);
   useEffect(() => {
     if (!bounds || following || !fitReady) return;
+    if (localFocus && lastLocalFit.current?.focus === localFocus && lastLocalFit.current.revision === fitRevision) return;
     const frame = requestAnimationFrame(() => {
+      lastLocalFit.current = localFocus ? { focus: localFocus, revision: fitRevision } : null;
       const mobile = matchMedia('(max-width: 720px)').matches;
       const overlay = panel.current?.getBoundingClientRect();
       const topLeft = point(60, mobile ? 105 : 120);
@@ -34,7 +38,7 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
       else map.flyTo(target, zoom, { duration: 0.68 });
     });
     return () => cancelAnimationFrame(frame);
-  }, [map, bounds, panel, following, fitRevision, fitReady]);
+  }, [map, bounds, panel, following, fitRevision, fitReady, localFocus]);
   const lat = tracked?.lat;
   const lon = tracked?.lon;
   useEffect(() => {
@@ -64,35 +68,28 @@ function aircraftIcon(heading, active) {
 const traceStyle = { color: '#087a70', weight: 4, opacity: 1, className: 'observed-trace' };
 const guideStyle = { color: '#5d6681', weight: 2, opacity: 0.94, dashArray: '4 8' };
 const replayStyle = { color: '#b96009', weight: 4, opacity: 1, className: 'observed-trace' };
+const liveTrailStyle = { color: '#0966b3', weight: 4, opacity: 0.95, className: 'observed-trace' };
 
-function TraceLine({ positions }) {
+function TraceLine({ positions, animate }) {
   const line = useRef(null);
   useEffect(() => {
     const path = line.current?.getElement();
-    if (!path || reducedMotion()) return;
+    if (!path || !animate || reducedMotion()) return;
     path.setAttribute('pathLength', '1');
     const animation = path.animate(
       [{ strokeDasharray: '1 1', strokeDashoffset: '1' }, { strokeDasharray: '1 1', strokeDashoffset: '0' }],
       { duration: 780, easing: 'cubic-bezier(.2,.75,.3,1)' }
     );
     return () => animation.cancel();
-  }, [positions]);
+  }, [positions, animate]);
   return <Polyline ref={line} positions={positions} interactive={false} pathOptions={traceStyle} />;
 }
 
-function buildGeometry(focus, route, segments) {
-  if (!focus) return null;
-  const point = [focus.plane.lat, focus.plane.lon];
-  const wrap = ([lat, lon]) => [lat, lon + 360 * Math.round((point[1] - lon) / 360)];
-  const airportPoint = airport => Number.isFinite(airport?.lat) && Number.isFinite(airport?.lon) ? wrap([airport.lat, airport.lon]) : null;
-  const from = airportPoint(route?.from);
-  const to = airportPoint(route?.to);
-  const tracks = segments?.map(segment => segment.map(wrap)) ?? [];
-  const first = tracks[0]?.[0] ?? point;
-  const guides = [];
-  if (from && distanceKm(from, first) > 2) guides.push([from, first]);
-  if (to) guides.push([point, to]);
-  return { from, to, tracks, guides, bounds: [point, ...[from, to].filter(Boolean), ...tracks.flat()] };
+function CoveragePin({ position, label, at }) {
+  if (!position) return null;
+  return <CircleMarker center={position} radius={4} pathOptions={{ color: '#087a70', weight: 2, fillColor: '#fff', fillOpacity: 1 }}>
+    <Tooltip direction="top" offset={[0, -4]}>{label}{Number.isFinite(at) ? ' · ' + timeLabel.format(at) : ''}</Tooltip>
+  </CircleMarker>;
 }
 
 function AirportPin({ position, airport, title, arrival = false }) {
@@ -104,17 +101,17 @@ function AirportPin({ position, airport, title, arrival = false }) {
   </CircleMarker>;
 }
 
-const Aircraft = memo(function Aircraft({ plane, active, muted, onSelect }) {
+const Aircraft = memo(function Aircraft({ plane, active, muted, flightNumber, flightTime, onSelect }) {
   const label = plane.callsign || plane.registration || plane.id.toUpperCase();
   return <Marker position={[plane.lat, plane.lon]} icon={aircraftIcon(plane.heading, active)}
     title={label} alt={label} opacity={muted ? 0.55 : 1} zIndexOffset={active ? 1000 : 0} eventHandlers={{ click: () => onSelect(plane) }}>
     <Tooltip permanent={active} direction="top" offset={[0, -17]} className={active ? 'click-tooltip' : ''}>
-      {active ? label + (plane.observedAt ? ' · ' + timeLabel.format(plane.observedAt) : ' · au clic') : label}
+      {active ? <><strong>{flightNumber}</strong><span>{flightTime}</span></> : label}
     </Tooltip>
   </Marker>;
 });
 
-function LivePosition({ plane }) {
+function LivePosition({ plane, stale }) {
   const marker = useRef(null);
   const initial = useRef([plane.lat, plane.lon]);
   const previous = useRef(plane.observedAt);
@@ -143,24 +140,23 @@ function LivePosition({ plane }) {
     return () => cancelAnimationFrame(frameId);
   }, [lat, lon, observedAt]);
   return <CircleMarker ref={marker} center={initial.current} radius={9}
-    pathOptions={{ color: '#fff', weight: 2.5, fillColor: '#0966b3', fillOpacity: 1, className: 'live-marker' }}>
-    <Tooltip permanent direction="bottom" offset={[0, 7]} className="live-tooltip">Direct · {timeLabel.format(observedAt)}</Tooltip>
+    pathOptions={{ color: '#fff', weight: 2.5, fillColor: stale ? '#526a80' : '#0966b3', fillOpacity: 1, className: 'live-marker' }}>
+    <Tooltip permanent direction="bottom" offset={[0, 7]} className="live-tooltip">{stale ? 'Dernière position' : 'Direct'} · {timeLabel.format(observedAt)}</Tooltip>
   </CircleMarker>;
 }
 
-export default function RadarMap({ planes, focus, route, segments, onSelect, recenter, panel, following, tracked, replay, fitRevision, fitReady }) {
-  const geometry = useMemo(() => buildGeometry(focus, route, segments), [focus, route, segments]);
+export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace }) {
   const original = focus?.plane;
-  const moved = tracked && (tracked.lat !== original?.lat || tracked.lon !== original?.lon);
-  const replayPosition = replay && [
-    replay.position[0], replay.position[1] + 360 * Math.round((original.lon - replay.position[1]) / 360)
-  ];
-  const replayTrack = replayPosition && geometry.tracks[replay.part];
+  const moved = livePosition && (livePosition.lat !== original?.lat || livePosition.lon !== original?.lon);
+  const replayTrack = replay && geometry?.tracks[replay.part];
+  const replayAnchor = replayTrack?.[replay.index];
+  const replayPosition = replayAnchor && [replay.position[0], nearLongitude(replay.position[1], replayAnchor[1])];
   const replayLine = replayTrack && [...geometry.tracks.slice(0, replay.part), [...replayTrack.slice(0, replay.index + 1), replayPosition]];
   return (
     <MapContainer center={center} zoom={8} minZoom={1} maxZoom={14} zoomControl={false}
       scrollWheelZoom worldCopyJump className="map">
-      <MapActions recenter={recenter} bounds={geometry?.bounds} panel={panel} following={following} tracked={tracked} fitRevision={fitRevision} fitReady={fitReady} />
+      <MapActions recenter={recenter} bounds={geometry?.bounds} panel={panel} following={following}
+        tracked={tracked} fitRevision={fitRevision} fitReady={fitReady} localFocus={localTrace ? focus : null} />
       <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenZooming={false}
         attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
       <ZoomControl position="topleft" />
@@ -177,16 +173,21 @@ export default function RadarMap({ planes, focus, route, segments, onSelect, rec
       </CircleMarker>}
       {geometry && <>
         <Polyline positions={geometry.guides} interactive={false} pathOptions={guideStyle} />
-        {geometry.tracks.map((segment, index) => <TraceLine key={index} positions={segment} />)}
+        {geometry.tracks.map((segment, index) => <TraceLine key={index} positions={segment} animate={!localTrace} />)}
         {replayLine && <Polyline positions={replayLine} interactive={false} pathOptions={replayStyle} />}
-        <AirportPin position={geometry.from} airport={route?.from} title="Départ" />
-        <AirportPin position={geometry.to} airport={route?.to} title="Arrivée" arrival />
+        <AirportPin position={geometry.from} airport={route?.from}
+          title={route?.observedDeparture ? 'Départ observé' : route?.probableDeparture ? 'Départ probable' : 'Départ annoncé'} />
+        <AirportPin position={geometry.to} airport={route?.to} title="Arrivée annoncée" arrival />
+        <CoveragePin position={geometry.startOfCoverage} label="Début de la trace" at={coverage?.start} />
+        <CoveragePin position={geometry.endOfCoverage} label="Fin de la trace" at={coverage?.end} />
       </>}
       {planes.filter(plane => plane.id !== focus?.plane.id).map(plane =>
         <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} />
       )}
-      {focus && <Aircraft key={focus.revision} plane={focus.plane} active onSelect={onSelect} />}
-      {moved && <LivePosition plane={tracked} />}
+      {focus && <Aircraft key={focus.revision} plane={focus.plane} active
+        flightNumber={flightNumber} flightTime={flightTime} onSelect={onSelect} />}
+      {trail.length > 0 && <Polyline positions={trail} interactive={false} pathOptions={liveTrailStyle} />}
+      {moved && <LivePosition plane={livePosition} stale={!tracked} />}
       {replayPosition && <CircleMarker center={replayPosition} radius={7} interactive={false}
         pathOptions={{ color: '#fff', weight: 2, fillColor: '#ad5700', fillOpacity: 1 }} />}
     </MapContainer>
