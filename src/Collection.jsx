@@ -169,7 +169,10 @@ export default function Collection() {
         </div>
       </nav>
       <header className="collection-header">
-        <div><h1>Ma collection</h1></div>
+        <div className="collection-intro">
+          <h1>Mon carnet de vol</h1>
+          <p>Les avions croisés au-dessus de l’Alsace, leurs routes et les kilomètres parcourus.</p>
+        </div>
         <AircraftArt code="A359" />
       </header>
       {error ? <div className="collection-empty"><p role="alert">{error}</p><button type="button" onClick={() => {
