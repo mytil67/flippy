@@ -7,28 +7,6 @@ import { flightTrace } from '../lib/trace.js';
 import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], recent: [] };
-let migrations;
-
-function collectionMigrations(sql) {
-  migrations ??= (async () => {
-    await sql`CREATE TABLE IF NOT EXISTS flippy_migrations (
-      name text PRIMARY KEY,
-      applied_at timestamptz NOT NULL DEFAULT now()
-    )`;
-    await sql`WITH migration AS (
-      INSERT INTO flippy_migrations (name) VALUES ('005_clear_unverified_routes')
-      ON CONFLICT DO NOTHING RETURNING 1
-    )
-    UPDATE flippy_captures
-    SET flight_number = NULL, route_km = NULL, departure_code = NULL, arrival_code = NULL
-    WHERE EXISTS (SELECT 1 FROM migration)
-      AND (flight_number IS NOT NULL OR route_km IS NOT NULL OR departure_code IS NOT NULL OR arrival_code IS NOT NULL)`;
-  })().catch(error => {
-    migrations = undefined;
-    throw error;
-  });
-  return migrations;
-}
 
 async function collection(sql, owner) {
   const [row] = await sql`
@@ -98,7 +76,6 @@ export default async function handler(request, response) {
 
   try {
     const sql = neon(connection);
-    await collectionMigrations(sql);
     const [identity, account] = await Promise.all([collectionIdentity(sql, token), accountUser(request)]);
     const owner = account ? 'account:' + account.id : identity?.id;
     if (action === 'claim') {
