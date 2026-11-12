@@ -329,6 +329,11 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-card-meta strong { color: var(--mint); font-size: 13px; }
 .collection-card-meta > div { flex-basis: 100%; }
 .collection-card-body .collection-route { color: var(--mint); font-weight: 750; }
+.route-status { justify-self: start; display: inline-flex; align-items: center; min-height: 23px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 800; }
+.route-status-confirmed { border-color: #51cbb7; background: #123c3b; color: #9ff1df; }
+.route-status-probable { border-color: #d8a44d; background: #3d321e; color: #ffd790; }
+.route-status-conflict { border-color: #d36e64; background: #432522; color: #ffb0a5; }
+.capture-route-evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .collection-stats div > span { color: var(--muted); font-size: 12px; }
 .ticket-distance { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0; font-size: 12px; }
 .ticket-distance strong { color: #08695f; font-size: 16px; }

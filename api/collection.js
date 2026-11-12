@@ -4,9 +4,26 @@ import { collectionAccess, collectionIdentity, setCollector } from '../lib/colle
 import { accountUser } from '../lib/account.js';
 import { distanceKm } from '../lib/flight.js';
 import { flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], recent: [] };
+let evidenceSchema;
+
+function ensureEvidenceSchema(sql) {
+  evidenceSchema ??= sql`ALTER TABLE flippy_captures
+    ADD COLUMN IF NOT EXISTS route_status text CHECK (route_status IN ('confirmed', 'probable', 'unverified', 'announced', 'conflict', 'unknown')),
+    ADD COLUMN IF NOT EXISTS reported_flight_number text,
+    ADD COLUMN IF NOT EXISTS reported_departure_code text,
+    ADD COLUMN IF NOT EXISTS reported_arrival_code text,
+    ADD COLUMN IF NOT EXISTS captured_lat double precision,
+    ADD COLUMN IF NOT EXISTS captured_lon double precision,
+    ADD COLUMN IF NOT EXISTS captured_heading real`
+    .catch(error => {
+      evidenceSchema = undefined;
+      throw error;
+    });
+  return evidenceSchema;
+}
 
 async function collection(sql, owner) {
   const [row] = await sql`
@@ -28,7 +45,9 @@ async function collection(sql, owner) {
     ),
     recent AS (
       SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
-        airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code
+        airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
+        route_status, reported_flight_number, reported_departure_code, reported_arrival_code,
+        captured_lat, captured_lon, captured_heading
       FROM own ORDER BY captured_at DESC LIMIT 30
     )
     SELECT count(*)::int AS count, count(DISTINCT aircraft)::int AS aircraft,
@@ -76,6 +95,7 @@ export default async function handler(request, response) {
 
   try {
     const sql = neon(connection);
+    await ensureEvidenceSchema(sql);
     const [identity, account] = await Promise.all([collectionIdentity(sql, token), accountUser(request)]);
     const owner = account ? 'account:' + account.id : identity?.id;
     if (action === 'claim') {
@@ -83,15 +103,25 @@ export default async function handler(request, response) {
       if (identity) await sql`
         WITH moved AS (DELETE FROM flippy_captures WHERE collector_id = ${identity.id} RETURNING *)
         INSERT INTO flippy_captures (collector_id, aircraft, callsign, flight_day, captured_at, flight_number,
-          registration, model_code, model, airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code)
+          registration, model_code, model, airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
+          route_status, reported_flight_number, reported_departure_code, reported_arrival_code, captured_lat, captured_lon, captured_heading)
         SELECT ${owner}, aircraft, callsign, flight_day, captured_at, flight_number, registration,
-          model_code, model, airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code FROM moved
+          model_code, model, airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
+          route_status, reported_flight_number, reported_departure_code, reported_arrival_code, captured_lat, captured_lon, captured_heading FROM moved
         ON CONFLICT (collector_id, aircraft, callsign, flight_day) DO UPDATE SET
           observed_km = greatest(flippy_captures.observed_km, EXCLUDED.observed_km),
           airline_iata = coalesce(flippy_captures.airline_iata, EXCLUDED.airline_iata),
           route_km = coalesce(flippy_captures.route_km, EXCLUDED.route_km),
           departure_code = CASE WHEN flippy_captures.route_km IS NULL THEN EXCLUDED.departure_code ELSE flippy_captures.departure_code END,
-          arrival_code = CASE WHEN flippy_captures.route_km IS NULL THEN EXCLUDED.arrival_code ELSE flippy_captures.arrival_code END`;
+          arrival_code = CASE WHEN flippy_captures.route_km IS NULL THEN EXCLUDED.arrival_code ELSE flippy_captures.arrival_code END,
+          route_status = CASE WHEN flippy_captures.route_km IS NULL
+            THEN coalesce(EXCLUDED.route_status, flippy_captures.route_status) ELSE flippy_captures.route_status END,
+          reported_flight_number = coalesce(EXCLUDED.reported_flight_number, flippy_captures.reported_flight_number),
+          reported_departure_code = coalesce(EXCLUDED.reported_departure_code, flippy_captures.reported_departure_code),
+          reported_arrival_code = coalesce(EXCLUDED.reported_arrival_code, flippy_captures.reported_arrival_code),
+          captured_lat = coalesce(EXCLUDED.captured_lat, flippy_captures.captured_lat),
+          captured_lon = coalesce(EXCLUDED.captured_lon, flippy_captures.captured_lon),
+          captured_heading = coalesce(EXCLUDED.captured_heading, flippy_captures.captured_heading)`;
       return reply(response, 200, { claimed: true });
     }
     if (action) return await collectionAccess(sql, identity, action, request, response);
@@ -116,8 +146,6 @@ export default async function handler(request, response) {
     const day = new Date(plane.observedAt).toISOString().slice(0, 10);
     const [duplicate] = await sql`SELECT route_km FROM flippy_captures WHERE collector_id = ${owner}
       AND aircraft = ${hex} AND callsign = ${callsign} AND flight_day = ${day}`;
-    if (duplicate?.route_km != null) return reply(response, 200, { already: true });
-
     const [details, trace] = await Promise.all([
       flightDetails(callsign, hex).catch(() => null),
       flightTrace(hex, { at: plane.observedAt, lat: plane.lat, lon: plane.lon }, callsign).catch(() => null)
@@ -126,18 +154,28 @@ export default async function handler(request, response) {
     const airline = details?.airline || plane.airline;
     const route = validateRouteDirection(reconcileRoute(details, trace?.departure), plane, trace?.segments);
     const routeKm = routeDistance(route);
+    const status = routeStatus(route);
     const departureCode = routeKm === null ? null : route.from.code ?? null;
     const arrivalCode = routeKm === null ? null : route.to.code ?? null;
     const captured = duplicate ? [] : await sql`INSERT INTO flippy_captures
       (collector_id, aircraft, callsign, flight_day, flight_number, registration, model_code, model, airline_code, airline_iata, airline,
-        observed_km, route_km, departure_code, arrival_code)
+        observed_km, route_km, departure_code, arrival_code, route_status, reported_flight_number,
+        reported_departure_code, reported_arrival_code, captured_lat, captured_lon, captured_heading)
       VALUES (${owner}, ${hex}, ${callsign}, ${day}, ${route?.unverified || route?.routeConflict ? null : route?.number ?? null}, ${plane.registration || details?.airframe?.registration || null},
         ${modelCode}, ${details?.airframe?.model || plane.model || null}, ${airline?.icao || airline?.iata || null}, ${airline?.iata || null}, ${airline?.name || null},
-        ${observedDistance(trace?.segments ?? [])}, ${routeKm}, ${departureCode}, ${arrivalCode}) ON CONFLICT DO NOTHING RETURNING 1`;
-    if (!captured.length && routeKm !== null) await sql`UPDATE flippy_captures SET route_km = ${routeKm},
-      departure_code = ${departureCode}, arrival_code = ${arrivalCode}
+        ${observedDistance(trace?.segments ?? [])}, ${routeKm}, ${departureCode}, ${arrivalCode}, ${status}, ${details?.number ?? null},
+        ${details?.from?.code ?? null}, ${details?.to?.code ?? null}, ${plane.lat}, ${plane.lon}, ${Number.isFinite(plane.heading) ? plane.heading : null})
+      ON CONFLICT DO NOTHING RETURNING 1`;
+    if (!captured.length) await sql`UPDATE flippy_captures SET
+      flight_number = CASE WHEN route_km IS NULL AND ${routeKm}::integer IS NOT NULL THEN ${route?.number ?? null} ELSE flight_number END,
+      route_km = coalesce(route_km, ${routeKm}),
+      departure_code = CASE WHEN route_km IS NULL THEN ${departureCode} ELSE departure_code END,
+      arrival_code = CASE WHEN route_km IS NULL THEN ${arrivalCode} ELSE arrival_code END,
+      route_status = ${status}, reported_flight_number = ${details?.number ?? null},
+      reported_departure_code = ${details?.from?.code ?? null}, reported_arrival_code = ${details?.to?.code ?? null},
+      captured_lat = ${plane.lat}, captured_lon = ${plane.lon}, captured_heading = ${Number.isFinite(plane.heading) ? plane.heading : null}
       WHERE collector_id = ${owner} AND aircraft = ${hex} AND callsign = ${callsign}
-        AND flight_day = ${day} AND route_km IS NULL`;
+        AND flight_day = ${day}`;
     reply(response, captured.length ? 201 : 200, { already: !captured.length });
   } catch (error) {
     console.warn('Collection FLIPPY indisponible', error.code ?? error.name);

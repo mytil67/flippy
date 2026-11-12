@@ -8,6 +8,19 @@ const tabs = [['recent', 'Captures'], ['planes', 'Avions'], ['models', 'Modèles
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const names = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
+const routeStates = {
+  confirmed: ['Trajet confirmé', 'confirmed'],
+  probable: ['Trajet probable', 'probable'],
+  unverified: ['Trajet non vérifié', 'unverified'],
+  announced: ['Trajet annoncé', 'unverified'],
+  conflict: ['Trajet incohérent écarté', 'conflict'],
+  unknown: ['Trajet inconnu', 'unknown']
+};
+
+function RouteStatus({ value }) {
+  const [label, tone] = routeStates[value] ?? routeStates.unknown;
+  return <span className={'route-status route-status-' + tone}>{label}</span>;
+}
 
 const aircraftPhotos = {
   a320: ['Airbus A320', 'Patrick Ludolph', 'Lufthansa_Airbus_A320_front-on_view.jpg', 'by/2.0'],
@@ -133,6 +146,10 @@ function CaptureDetail({ item, onClose }) {
           <div><dt>Trajet complet</dt><dd>{distance(item.route_km)}</dd></div>
           <div><dt>Trace observée</dt><dd>{distance(item.observed_km)}</dd></div>
         </dl>
+        <p className="capture-route-evidence"><RouteStatus value={item.route_status} />
+          {item.reported_departure_code && item.reported_arrival_code &&
+            <span>Source annoncée : {item.reported_departure_code} → {item.reported_arrival_code}</span>}
+        </p>
         {item.airline && <div className="capture-detail-airline"><CompanyLogo code={item.airline_code} iata={item.airline_iata}
           flight={item.flight_number} name={item.airline} /><span>{item.airline}</span></div>}
       </div>
@@ -150,6 +167,7 @@ function CollectionCard({ item, tab, onOpen }) {
     <div className="collection-card-body">
       <h3>{recent ? flight : item.name}</h3>
       {recent && item.departure_code && item.arrival_code && <p className="collection-route">{item.departure_code} → {item.arrival_code}</p>}
+      {recent && <RouteStatus value={item.route_status} />}
       {recent && <p>{[item.model || item.model_code, item.airline].filter(Boolean).join(' · ') || 'Appareil non identifié'}</p>}
       {tab === 'planes' && item.model && <p>{item.model}</p>}
       {recent && item.airline && <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />}

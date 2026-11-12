@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractFlightTrace, extractOpenSkyTrace, flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
 
 test('la distance du trajet couvre les deux aéroports et reste inconnue en cas de conflit', () => {
   const route = { from: { lat: 49.01, lon: 2.55 }, to: { lat: 43.66, lon: 7.22 } };
@@ -10,6 +10,15 @@ test('la distance du trajet couvre les deux aéroports et reste inconnue en cas 
   assert.equal(routeDistance({ ...route, routeConflict: true }), null);
   assert.equal(routeDistance({ ...route, to: { lat: 92, lon: 7.22 } }), null);
   assert.equal(routeDistance({ from: route.from }), null);
+});
+
+test('qualifie la preuve associée au trajet sans confondre annonce et confirmation', () => {
+  assert.equal(routeStatus({ from: {}, to: {}, observedDeparture: true }), 'confirmed');
+  assert.equal(routeStatus({ from: {}, to: {}, probableDeparture: true }), 'probable');
+  assert.equal(routeStatus({ from: {}, to: {}, unverified: true }), 'unverified');
+  assert.equal(routeStatus({ from: {}, to: {} }), 'announced');
+  assert.equal(routeStatus({ routeConflict: true }), 'conflict');
+  assert.equal(routeStatus(null), 'unknown');
 });
 
 const extractTrace = (...args) => extractFlightTrace(...args).segments;
