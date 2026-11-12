@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { collectionInsights } from '../src/collectionInsights.js';
+import { collectionInsights, routeEvidenceGroup, routeReliability } from '../src/collectionInsights.js';
 
 test('résume les compagnies, routes, aéroports et moments des captures récentes', () => {
   const recent = [
@@ -21,4 +21,18 @@ test('résume les compagnies, routes, aéroports et moments des captures récent
   assert.deepEqual(insights.periods.map(period => period.count), [1, 2, 1, 1]);
   assert.equal(insights.peakPeriod.label, 'Matin');
   assert.equal(insights.routeCoverage, 80);
+});
+
+test('regroupe et compte les niveaux de preuve des trajets', () => {
+  const items = ['confirmed', 'confirmed', 'probable', 'unverified', 'announced', 'conflict', null]
+    .map(route_status => ({ route_status }));
+  assert.equal(routeEvidenceGroup('announced'), 'unverified');
+  assert.equal(routeEvidenceGroup('unexpected'), 'unknown');
+  assert.deepEqual(routeReliability(items), [
+    { key: 'confirmed', count: 2 },
+    { key: 'probable', count: 1 },
+    { key: 'unverified', count: 2 },
+    { key: 'conflict', count: 1 },
+    { key: 'unknown', count: 1 }
+  ]);
 });

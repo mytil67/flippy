@@ -17,6 +17,20 @@ function ranking(values, limit = 4) {
     .slice(0, limit);
 }
 
+export function routeEvidenceGroup(status) {
+  return status === 'announced' ? 'unverified' :
+    ['confirmed', 'probable', 'unverified', 'conflict'].includes(status) ? status : 'unknown';
+}
+
+export function routeReliability(items = []) {
+  const counts = new Map(['confirmed', 'probable', 'unverified', 'conflict', 'unknown'].map(key => [key, 0]));
+  for (const item of items) {
+    const key = routeEvidenceGroup(item.route_status);
+    counts.set(key, counts.get(key) + 1);
+  }
+  return [...counts].map(([key, count]) => ({ key, count })).filter(item => item.count);
+}
+
 export function collectionInsights(data) {
   const recent = data?.recent ?? [];
   const routes = ranking(recent.map(item => item.departure_code && item.arrival_code

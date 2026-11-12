@@ -302,6 +302,26 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-tabs button:hover, .collection-empty button:hover { background: var(--raised); }
 .collection-tabs button[aria-pressed="true"] { border-color: var(--mint); background: var(--mint); color: #082b2c; }
 .collection-tabs span { margin-left: 4px; font-variant-numeric: tabular-nums; }
+.route-reliability { margin: 0 0 13px; padding: 14px 15px; border-left: 3px solid var(--amber); background: #0b222e; }
+.route-reliability header { display: flex; align-items: end; justify-content: space-between; gap: 14px; }
+.route-reliability h2 { font-size: 15px; }
+.route-reliability header p { max-width: 62ch; margin-top: 3px; color: var(--muted); font-size: 11px; }
+.route-reliability header > strong { color: var(--mint); font-size: 12px; white-space: nowrap; }
+.reliability-track { display: flex; height: 6px; overflow: hidden; margin: 12px 0 9px; background: #183b48; }
+.reliability-track span { min-width: 3px; }
+.reliability-confirmed { --evidence-color: #51cbb7; }
+.reliability-probable { --evidence-color: #d8a44d; }
+.reliability-unverified { --evidence-color: #8297a1; }
+.reliability-conflict { --evidence-color: #d36e64; }
+.reliability-unknown { --evidence-color: #385666; }
+.reliability-track span, .reliability-filters button::before { background: var(--evidence-color); }
+.reliability-filters { display: flex; flex-wrap: wrap; gap: 5px; }
+.reliability-filters button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 750; }
+.reliability-filters button::before { width: 7px; height: 7px; border-radius: 50%; content: ''; }
+.reliability-filters button:first-child::before { background: var(--mint); }
+.reliability-filters button span { font-variant-numeric: tabular-nums; }
+.reliability-filters button:hover { background: var(--raised); color: #fff; }
+.reliability-filters button[aria-pressed="true"] { border-color: var(--mint); background: #153b47; color: #fff; }
 .collection-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .collection-filters input, .collection-filters select { min-width: 0; min-height: 42px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: #edf7f8; font: inherit; font-size: 16px; }
 .collection-filters input { flex: 1 1 180px; }
@@ -416,6 +436,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .collection-header .aircraft-art { min-height: 150px; }
   .collection-intro { padding-bottom: 22px !important; }
   .collection-intro p { margin-top: 12px; }
+  .route-reliability header { align-items: start; flex-direction: column; gap: 5px; }
   .capture-detail { width: calc(100% - 16px); max-height: calc(100% - 16px); margin: auto auto 8px; border-radius: 24px 24px 10px 10px; }
   .capture-detail-sheet { grid-template-columns: minmax(0, 1fr); }
   .capture-detail .aircraft-art { min-height: 175px; max-height: 175px; }

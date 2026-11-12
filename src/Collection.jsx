@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { knownAirline } from '../lib/flight.js';
-import { collectionInsights } from './collectionInsights.js';
+import { collectionInsights, routeEvidenceGroup, routeReliability } from './collectionInsights.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
@@ -20,6 +20,26 @@ const routeStates = {
 function RouteStatus({ value }) {
   const [label, tone] = routeStates[value] ?? routeStates.unknown;
   return <span className={'route-status route-status-' + tone}>{label}</span>;
+}
+
+function ReliabilityFilter({ items, value, onChange }) {
+  const groups = useMemo(() => routeReliability(items), [items]);
+  if (!items.length) return null;
+  return <section className="route-reliability" aria-labelledby="route-reliability-title">
+    <header><div><h2 id="route-reliability-title">Fiabilité des itinéraires</h2>
+      <p>FLIPPY sépare les trajets corroborés des informations seulement annoncées.</p></div>
+      <strong>{items.length} capture{items.length === 1 ? '' : 's'}</strong></header>
+    <div className="reliability-track" aria-hidden="true">
+      {groups.map(group => <span key={group.key} className={'reliability-' + group.key}
+        style={{ width: `${group.count / items.length * 100}%` }} />)}
+    </div>
+    <div className="reliability-filters" role="group" aria-label="Filtrer par fiabilité du trajet">
+      <button type="button" aria-pressed={value === 'all'} onClick={() => onChange('all')}>Toutes <span>{items.length}</span></button>
+      {groups.map(group => <button key={group.key} type="button" className={'reliability-' + group.key}
+        aria-pressed={value === group.key} onClick={() => onChange(group.key)}>
+        {routeStates[group.key][0].replace('Trajet ', '')} <span>{group.count}</span></button>)}
+    </div>
+  </section>;
 }
 
 const aircraftPhotos = {
@@ -238,6 +258,7 @@ export default function Collection() {
   const [tab, setTab] = useState('recent');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('default');
+  const [routeFilter, setRouteFilter] = useState('all');
   const [accountOpen, setAccountOpen] = useState(window.location.hash === '#compte');
   const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -252,10 +273,12 @@ export default function Collection() {
 
   const items = data?.[tab] ?? [];
   const term = searchText(query.trim());
-  const filtered = term ? items.filter(item => searchText([
+  const reliableItems = tab === 'recent' && routeFilter !== 'all'
+    ? items.filter(item => routeEvidenceGroup(item.route_status) === routeFilter) : items;
+  const filtered = term ? reliableItems.filter(item => searchText([
     item.name, item.code, item.flight_number, item.callsign, item.registration, item.aircraft,
     item.model, item.model_code, item.airline, item.airline_code, item.airline_iata, item.departure_code, item.arrival_code
-  ].filter(Boolean).join(' ')).includes(term)) : items;
+  ].filter(Boolean).join(' ')).includes(term)) : reliableItems;
   const visible = sort === 'distance' ? [...filtered].sort((a, b) =>
     (b.route_km ?? -1) - (a.route_km ?? -1)) :
     sort === 'name' ? [...filtered].sort((a, b) => names.compare(a.name ?? a.flight_number ?? a.callsign, b.name ?? b.flight_number ?? b.callsign)) : filtered;
@@ -265,6 +288,7 @@ export default function Collection() {
     setTab(next);
     setQuery('');
     setSort('default');
+    setRouteFilter('all');
   }
 
   return <main className="collection-page">
@@ -301,6 +325,7 @@ export default function Collection() {
               {label}{key !== 'recent' && <span> {data[key].length}</span>}
             </button>)}
           </nav>
+          {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
           {items.length > 0 && <div className="collection-filters">
             <input type="search" aria-label="Rechercher dans cette vue" placeholder="Rechercher dans cette vue" value={query} onChange={event => setQuery(event.target.value)} />
             <select aria-label="Trier les résultats" value={sort} onChange={event => setSort(event.target.value)}>
@@ -309,12 +334,12 @@ export default function Collection() {
               <option value="name">Ordre alphabétique</option>
             </select>
           </div>}
-          {term && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
+          {(term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
           {visible.length ? <ul className="collection-list" aria-label={tabs.find(([key]) => key === tab)[1]}>
             {visible.map(item => <CollectionCard key={item.code ?? `${item.aircraft}:${item.callsign}:${item.captured_at}`}
               item={item} tab={tab} onOpen={setDetail} />)}
           </ul> : <div className="collection-empty">
-            {term ? <p>Aucun résultat pour cette recherche.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
+            {term ? <p>Aucun résultat pour cette recherche.</p> : routeFilter !== 'all' ? <p>Aucune capture avec ce niveau de fiabilité.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
               <p>Sélectionne un avion en direct et clique sur « Capturer » pour commencer.</p>
               <a className="collection-back" href="/">Ouvrir le radar</a>
             </>}
