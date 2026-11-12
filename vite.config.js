@@ -3,12 +3,16 @@ import flights from './api/vols.js';
 import details from './api/trajet.js';
 import trace from './api/trace.js';
 import follow from './api/suivi.js';
+import collection from './api/collection.js';
+import account from './api/account.js';
 
 function attachApi(server) {
   server.middlewares.use('/api/vols', flights);
   server.middlewares.use('/api/trajet', details);
   server.middlewares.use('/api/trace', trace);
   server.middlewares.use('/api/suivi', follow);
+  server.middlewares.use('/api/collection', collection);
+  server.middlewares.use('/api/account', account);
 }
 
 export default defineConfig({

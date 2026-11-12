@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { extractFlightTrace, extractOpenSkyTrace } from '../lib/trace.js';
-import { reconcileRoute } from '../lib/routeEvidence.js';
+import { extractFlightTrace, extractOpenSkyTrace, flightTrace } from '../lib/trace.js';
+import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
+
+test('la distance du trajet couvre les deux aéroports et reste inconnue en cas de conflit', () => {
+  const route = { from: { lat: 49.01, lon: 2.55 }, to: { lat: 43.66, lon: 7.22 } };
+  assert.equal(routeDistance(route), 694);
+  assert.equal(routeDistance({ ...route, unverified: true }), 694);
+  assert.equal(routeDistance({ ...route, routeConflict: true }), null);
+  assert.equal(routeDistance({ ...route, to: { lat: 92, lon: 7.22 } }), null);
+  assert.equal(routeDistance({ from: route.from }), null);
+});
 
 const extractTrace = (...args) => extractFlightTrace(...args).segments;
 import { buildTraceGeometry, nearLongitude } from '../src/traceGeometry.js';
@@ -10,6 +19,29 @@ import { normalizePositions } from '../lib/adsb.js';
 import { flightDurationLabel } from '../src/flightDuration.js';
 
 const sample = (seconds, lon, extra) => ({ at: seconds * 1000, lat: 48.5, lon, ...extra });
+
+test('la source configurée renvoie une trace dès le clic, sans position locale antérieure', async context => {
+  const key = 'test-flight-history-key';
+  const previous = process.env.FLYITALYADSB_API_KEY;
+  process.env.FLYITALYADSB_API_KEY = key;
+  context.after(() => {
+    if (previous === undefined) delete process.env.FLYITALYADSB_API_KEY;
+    else process.env.FLYITALYADSB_API_KEY = previous;
+  });
+  const at = Date.parse('2026-11-11T12:00:00Z');
+  const provider = context.mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(url, 'https://api.flyitalyadsb.com/v2/history/123abc/2026-11-11');
+    assert.equal(options.headers['X-Api-Key'], key);
+    return Response.json({ icao: '123abc', timestamp: at / 1000 - 40, trace: [
+      [0, 48.6, 7.45, 5000, 200, 90, 0, null, { flight: 'AFR198 ' }],
+      [20, 48.6, 7.49, 5000, 200, 90, 0]
+    ] });
+  });
+  const result = await flightTrace('123abc', { at, lat: 48.6, lon: 7.53 }, 'AFR198');
+  assert.equal(provider.mock.callCount(), 1);
+  assert.equal(result.source, 'FlyItalyADSB');
+  assert.deepEqual(result.segments, [[[48.6, 7.45], [48.6, 7.49], [48.6, 7.53]]]);
+});
 
 test('ignore un point aberrant sans couper les observations cohérentes', () => {
   const start = sample(0, 7, { flags: 2 });

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { center, distanceKm, knownAirline, radius } from '../lib/flight.js';
 import RadarMap, { planePath } from './RadarMap.jsx';
+import { collectionRequest } from './Collection.jsx';
 import { playbackFrames, useReplay } from './replay.js';
 import { buildTraceGeometry } from './traceGeometry.js';
 import { flightDurationLabel } from './flightDuration.js';
-import { reconcileRoute } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 
 const demo = [
@@ -36,9 +37,14 @@ function PlaneIcon() {
 const icons = {
   radar: 'M12 2v4m0 12v4M2 12h4m12 0h4 M18.5 12a6.5 6.5 0 1 1-13 0 6.5 6.5 0 0 1 13 0Z M12 11v2',
   fullscreen: 'M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5',
+  frame: 'M8 4H4v4m12-4h4v4m0 8v4h-4m-8 0H4v-4m4-1 3-4 2 2 3-4',
   back: 'M19 12H5m6-6-6 6 6 6',
   play: 'm9 5 11 7-11 7V5Z',
-  pause: 'M9 5v14m6-14v14'
+  pause: 'M9 5v14m6-14v14',
+  close: 'm6 6 12 12M18 6 6 18',
+  previous: 'm15 6-6 6 6 6',
+  next: 'm9 6 6 6-6 6',
+  collection: 'M4 7h16v13H4zM3 4h18v3H3zM10 12h4'
 };
 
 function Icon({ name }) {
@@ -108,6 +114,7 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
   const airline = route?.airline ?? plane?.airline;
   const flight = route?.number || plane?.callsign || plane?.registration || (plane ? plane.id.toUpperCase() : '—');
   const destination = route?.to;
+  const totalDistance = routeDistance(route);
   const distance = plane && Number.isFinite(destination?.lat) && Number.isFinite(destination?.lon)
     ? distanceKm([plane.lat, plane.lon], [destination.lat, destination.lon]) : null;
   const observedAt = mode === 'demo' ? Date.now() : plane?.observedAt;
@@ -139,13 +146,14 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
           route?.routeUnavailable ? 'Service de trajets indisponible.' : 'Trajet inconnu pour cet indicatif.'
       }</p>}
       {route?.unverified && <p className="route-note">Itinéraire annoncé. Départ non vérifié par ADS-B.</p>}
+      {totalDistance !== null && <p className="ticket-distance"><span>Départ → arrivée</span><strong>{unit(totalDistance, 'km')}</strong><small>à vol d’oiseau</small></p>}
       <dl className="metrics">
         <div><dt>Altitude</dt><dd>{unit(plane?.altitude, 'pi')}</dd></div>
         <div><dt>Vitesse sol</dt><dd>{unit(plane?.speed * 1.852, 'km/h')}</dd></div>
         <div><dt>Distance radar</dt><dd>{unit(plane?.distance, 'km')}</dd></div>
         <div><dt>Arrivée estimée</dt><dd>{minutes === null ? '—' : clock.format(observedAt + minutes * 60000)}</dd></div>
       </dl>
-      {minutes !== null && <p className="route-note">{unit(distance, 'km')} à vol d’oiseau · {unit(minutes, 'min')} · heure de Paris</p>}
+      {minutes !== null && <p className="route-note">{unit(distance, 'km')} restants à vol d’oiseau · {unit(minutes, 'min')} · heure de Paris</p>}
     </div>
     <div className="ticket-stub">
       <div><p className="label">Appareil</p><strong>{route?.airframe?.model || plane?.model || plane?.type || route?.airframe?.type || '—'}</strong>
@@ -156,10 +164,78 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
   </section>;
 }
 
+function trafficPageSize() {
+  const height = window.innerHeight;
+  if (height < 360) return 1;
+  if (height < 470) return 2;
+  if (height < 650) return 3;
+  return 4;
+}
+
+function TrafficPanel({ planes, matches, selected, query, searching, status, route, searchDetails, onQuery, onSelect, onClose }) {
+  const [pageSize, setPageSize] = useState(trafficPageSize);
+  const [requestedPage, setRequestedPage] = useState(0);
+  const closeButton = useRef(null);
+  useEffect(() => {
+    closeButton.current.focus({ preventScroll: true });
+    const resize = () => setPageSize(trafficPageSize());
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, []);
+  const lastPage = Math.max(0, Math.ceil(matches.length / pageSize) - 1);
+  const page = Math.min(requestedPage, lastPage);
+  const start = page * pageSize;
+  const end = Math.min(matches.length, start + pageSize);
+  const summary = lastPage > 0 ? `${start + 1}–${end} sur ${matches.length}` :
+    `${matches.length} ${query.trim() ? 'résultat' : 'vol'}${matches.length === 1 ? '' : 's'}`;
+
+  return <aside id="nearby-flights" className="traffic" aria-labelledby="traffic-title" onKeyDown={event => {
+    if (event.key === 'Escape') {
+      event.stopPropagation();
+      onClose();
+    }
+  }}>
+    <header>
+      <h2 id="traffic-title">Vols à proximité</h2>
+      <button type="button" className="nearest-flight" disabled={!planes.length} onClick={() => {
+        onQuery('');
+        onSelect(planes[0]);
+      }}>Le plus proche</button>
+      <button ref={closeButton} type="button" className="traffic-icon" aria-label="Fermer les vols à proximité" onClick={onClose}><Icon name="close" /></button>
+    </header>
+    <input type="search" aria-label="Rechercher un vol, une compagnie ou un appareil" value={query}
+      onChange={event => { setRequestedPage(0); onQuery(event.target.value); }}
+      placeholder="Vol, compagnie ou appareil" maxLength={60} />
+    {matches.length ? <ul className="traffic-list">
+      {matches.slice(start, end).map(plane => {
+        const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
+        const airline = details?.airline ?? plane.airline;
+        return <li key={plane.id}><button type="button" onClick={() => onSelect(plane)} aria-current={plane.id === selected?.id ? 'true' : undefined}>
+          <AirlineLogo key={airline?.iata} airline={airline} /><span className="traffic-name">
+            <strong>{details?.number || plane.callsign || plane.registration || plane.id.toUpperCase()}</strong>
+            <small>{airline?.name || plane.model || plane.type || 'Avion non identifié'}</small>
+          </span><span className="traffic-distance">{unit(plane.distance, 'km')}</span><Icon name="next" />
+        </button></li>;
+      })}
+    </ul> : <p className="traffic-empty" role="status">{query.trim() ? (searching ? 'Recherche en cours…' : 'Aucun vol trouvé.') :
+      status === 'En direct' ? 'Aucun avion signalé dans la zone.' : status}</p>}
+    {matches.length > 0 && <footer>
+      <p role="status">{summary}{searching && ' · Recherche…'}</p>
+      {lastPage > 0 && <div className="traffic-pages" role="group" aria-label="Pages de vols">
+        <button type="button" className="traffic-icon" aria-label="Vols précédents" aria-disabled={page === 0}
+          onClick={() => { if (page > 0) setRequestedPage(page - 1); }}><Icon name="previous" /></button>
+        <button type="button" className="traffic-icon" aria-label="Vols suivants" aria-disabled={page === lastPage}
+          onClick={() => { if (page < lastPage) setRequestedPage(page + 1); }}><Icon name="next" /></button>
+      </div>}
+    </footer>}
+  </aside>;
+}
+
 export default function App() {
   const [mode, setMode] = useState('live');
   const [focus, setFocus] = useState(null);
   const [showTraffic, setShowTraffic] = useState(false);
+  const [capture, setCapture] = useState(null);
   const [recenter, setRecenter] = useState(0);
   const [fitRevision, setFitRevision] = useState(0);
   const [following, setFollowing] = useState(false);
@@ -175,8 +251,12 @@ export default function App() {
   const [fullscreenError, setFullscreenError] = useState('');
   const display = useRef(null);
   const panel = useRef(null);
+  const trafficToggle = useRef(null);
   const { planes, snapshot, failed, radarHistory } = useTraffic(mode);
   const selected = focus?.plane;
+  const captureKey = selected && `${selected.id}:${selected.callsign}:${Math.floor((selected.observedAt ?? 0) / 86400000)}`;
+  const selectedCapture = capture?.key === captureKey ? capture : null;
+  const canCapture = mode === 'live' && /^[0-9a-f]{6}$/.test(selected?.id ?? '');
   const params = selected && mode === 'live' ? lookupParams(selected) : '';
   const reportedRoute = detail?.params === params ? detail.data : null;
   const traceParams = mode === 'live' && selected && /^[0-9a-f]{6}$/.test(selected.id) && Number.isFinite(selected.observedAt)
@@ -338,6 +418,7 @@ export default function App() {
     traceLoading ? 'Chargement de l’historique ADS-B…' :
     traceResult?.failed ? 'Historique externe indisponible · trace locale en cours' :
     traceResult?.source === 'OpenSky' ? 'Trace ADS-B · OpenSky' :
+    traceResult?.source === 'FlyItalyADSB' ? 'Trace ADS-B' :
     segments?.length ? (geometry?.partial ? 'Trace ADS-B partielle' : 'Trace enregistrée') : 'Aucune trace exploitable pour ce vol';
 
   const choosePlane = useCallback(plane => {
@@ -349,6 +430,22 @@ export default function App() {
     setShowTraffic(false);
     setFocus(previous => ({ plane: latest, revision: (previous?.revision ?? 0) + 1 }));
   }, [planes, clearReplay]);
+
+  function closeTraffic() {
+    setShowTraffic(false);
+    trafficToggle.current.focus({ preventScroll: true });
+  }
+
+  async function capturePlane() {
+    setCapture({ key: captureKey, pending: true });
+    try {
+      const params = new URLSearchParams({ hex: selected.id, vol: selected.callsign });
+      const result = await collectionRequest('?' + params, { method: 'POST' });
+      setCapture({ key: captureKey, saved: true, message: result.already ? 'Déjà capturé aujourd’hui.' : 'Ajouté à ta collection !' });
+    } catch (error) {
+      setCapture({ key: captureKey, message: error.message, failed: true, needsAccount: error.status === 401 });
+    }
+  }
 
   function returnToRadar() {
     replay.clear();
@@ -403,7 +500,7 @@ export default function App() {
       <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage}
         flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
         flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
-        onSelect={choosePlane} fitReady={!routeLoading && (!traceLoading || Boolean(localTrace))} localTrace={Boolean(localTrace)}
+        onSelect={choosePlane} fitReady={Boolean(segments?.length) || (!routeLoading && !traceLoading)} localTrace={Boolean(localTrace)}
         recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked}
         livePosition={livePosition} trail={trail} replay={replay.frame} />
     </section>
@@ -418,7 +515,9 @@ export default function App() {
           <button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Démo</button>
         </div>
         <div className="radar-actions">
-          <button type="button" className="traffic-toggle" aria-expanded={showTraffic} onClick={() => setShowTraffic(value => !value)}>Vols <strong>{planes.length}</strong></button>
+          <button ref={trafficToggle} type="button" className="traffic-toggle" aria-label={'Vols à proximité, ' + planes.length}
+            aria-expanded={showTraffic} aria-controls={showTraffic ? 'nearby-flights' : undefined}
+            onClick={() => setShowTraffic(value => !value)}>Vols <strong>{planes.length}</strong></button>
           <button type="button" onClick={returnToRadar} aria-label="Recentrer sur le radar" title="Recentrer sur le radar"><Icon name="radar" /></button>
           <button type="button" onClick={toggleFullscreen} aria-label="Basculer le plein écran" title="Plein écran"><Icon name="fullscreen" /></button>
         </div>
@@ -429,14 +528,32 @@ export default function App() {
       <span className="live-dot" />{status}<span className="signal-detail">· 100 km</span>
       {mode === 'live' && snapshot && <a href={snapshot.source === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{snapshot.source} · {clock.format(snapshot.updatedAt)}</a>}
     </div>
+    <a className="collection-launch" href="/collection"><Icon name="collection" /> Collection</a>
     {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
-    {(focus || showTraffic) && <aside className="flight-column" ref={panel} aria-label="Informations sur les vols">
-      {focus && <div className="flight-panel">
-        <div className="panel-header"><button type="button" onClick={returnToRadar}><Icon name="back" /> Radar</button><span>Position au clic {selected.observedAt ? '· ' + preciseClock.format(selected.observedAt) : ''}</span></div>
+    {focus && <aside className={'flight-column' + (showTraffic ? ' behind-traffic' : '')} ref={panel} aria-label="Informations sur les vols">
+      <div className="flight-panel">
+        <div className="panel-header">
+          <button type="button" onClick={returnToRadar}><Icon name="back" /> Radar</button>
+          {segments?.length > 0 && <button type="button" aria-label="Cadrer le trajet" onClick={() => {
+            setFollowing(false);
+            setFitRevision(value => value + 1);
+          }}><Icon name="frame" /> Cadrer</button>}
+          <span>Position au clic {selected.observedAt ? '· ' + preciseClock.format(selected.observedAt) : ''}</span>
+        </div>
         <FlightTicket plane={selected} route={route} loading={routeLoading || traceLoading} mode={mode} failed={mode === 'live' && failed} />
+        {canCapture && <div className="capture-row">
+          <button type="button" onClick={capturePlane} disabled={capture?.pending || selectedCapture?.saved}>
+            <Icon name="collection" />{selectedCapture?.pending ? 'Capture en cours…' : selectedCapture?.saved ? 'Capturé' : 'Capturer'}
+          </button>
+          {selectedCapture?.message && <span role={selectedCapture.failed ? 'alert' : 'status'}>{selectedCapture.message}</span>}
+          {selectedCapture?.saved && <a className="capture-collection" href="/collection">Voir ma collection</a>}
+          {selectedCapture?.needsAccount && <a className="capture-collection" href="/collection#compte">Se connecter</a>}
+        </div>}
         <div className="trace-legend" aria-live="polite">
           <span><i className={segments?.length ? 'legend-trace' : 'legend-empty'} />{traceStatus}</span>
-          {geometry?.guides.length > 0 && <span><i className="legend-guide" />Portion indicative</span>}
+          {traceResult?.source === 'FlyItalyADSB' && <span><a href="https://flyitalyadsb.com/">FlyItalyADSB</a> · <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a></span>}
+          {geometry?.guides.length > 0 && <span><i className="legend-guide" />Portion estimée</span>}
+          {geometry?.tracks.length > 1 && <span><i className="legend-gap" />Coupures de réception</span>}
           {trail.length > 0 && <span><i className="legend-live" />Positions reçues en direct</span>}
         </div>
         {coverage && <dl className="trace-coverage">
@@ -472,26 +589,10 @@ export default function App() {
             </p>}
           </div>}
         </section>}
-      </div>}
-      {showTraffic && <section className="traffic" aria-labelledby="traffic-title">
-            <header><h2 id="traffic-title">Vols à proximité</h2><button type="button" disabled={!planes.length} onClick={() => { setQuery(''); choosePlane(planes[0]); }}>Le plus proche</button></header>
-            <input type="search" aria-label="Rechercher un vol, une compagnie ou un appareil" value={query}
-              onChange={event => { setQuery(event.target.value); setSearching(false); }} placeholder="Rechercher un vol ou une compagnie" maxLength={60} />
-            {term && <p className="search-status" role="status">{matches.length} résultat{matches.length !== 1 ? 's' : ''}{searching ? ' · Identification en cours…' : ''}</p>}
-            <ul className="traffic-list">
-              {matches.map(plane => {
-                const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
-                const airline = details?.airline ?? plane.airline;
-                return <li key={plane.id}><button type="button" onClick={() => choosePlane(plane)} aria-pressed={plane.id === selected?.id}>
-                  <AirlineLogo key={airline?.iata} airline={airline} /><span className="traffic-name">
-                    <strong>{details?.number || plane.callsign || plane.registration || plane.id.toUpperCase()}</strong>
-                    <small>{airline?.name || plane.model || plane.type || 'Avion non identifié'}</small>
-                  </span><span className="traffic-distance">{unit(plane.distance, 'km')}</span>
-                </button></li>;
-              })}
-            </ul>
-            {!term && !matches.length && <p className="search-status">{status === 'En direct' ? 'Aucun avion signalé dans la zone.' : status}</p>}
-      </section>}
+      </div>
     </aside>}
+    {showTraffic && <TrafficPanel planes={planes} matches={matches} selected={selected} query={query} searching={searching}
+      status={status} route={route} searchDetails={searchDetails} onQuery={value => { setQuery(value); setSearching(false); }}
+      onSelect={choosePlane} onClose={closeTraffic} />}
   </main>;
 }

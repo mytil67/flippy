@@ -9,6 +9,16 @@ export const planePath = 'M12 2c1 0 1.6 1.1 1.6 2.3v5.1l7.4 5v1.8l-7.4-2.5v4.5l2
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 const timeLabel = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
+function mapPadding(map, panel) {
+  const { x: width, y: height } = map.getSize();
+  const mobile = matchMedia('(max-width: 720px)').matches;
+  const side = Math.min(mobile ? 84 : 96, Math.floor(width / 4));
+  const right = !mobile && panel ? width - panel.offsetLeft + side : side;
+  const bottom = mobile && panel ? height - panel.offsetTop + 30 : 64;
+  const top = Math.min(mobile ? 128 : 146, Math.floor((height - bottom) * 0.6));
+  return { topLeft: point(side, top), bottomRight: point(right, bottom) };
+}
+
 function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, fitReady, localFocus }) {
   const map = useMap();
   const lastLocalFit = useRef(null);
@@ -22,13 +32,17 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
   }, [map, recenter]);
   useEffect(() => {
     if (!bounds || following || !fitReady) return;
-    if (localFocus && lastLocalFit.current?.focus === localFocus && lastLocalFit.current.revision === fitRevision) return;
-    const frame = requestAnimationFrame(() => {
-      lastLocalFit.current = localFocus ? { focus: localFocus, revision: fitRevision } : null;
-      const mobile = matchMedia('(max-width: 720px)').matches;
-      const overlay = panel.current?.getBoundingClientRect();
-      const topLeft = point(60, mobile ? 105 : 120);
-      const bottomRight = mobile ? point(38, (overlay?.height ?? 0) + 48) : point((overlay?.width ?? 0) + 52, 65);
+    const overlay = panel.current;
+    let frame;
+    let previousLayout;
+    function fit() {
+      const { topLeft, bottomRight } = mapPadding(map, overlay);
+      const layout = [map.getSize().x, map.getSize().y, topLeft.x, topLeft.y, bottomRight.x, bottomRight.y].join(':');
+      if (layout === previousLayout) return;
+      previousLayout = layout;
+      const last = lastLocalFit.current;
+      if (localFocus && last?.focus === localFocus && last.revision === fitRevision && last.layout === layout) return;
+      lastLocalFit.current = localFocus ? { focus: localFocus, revision: fitRevision, layout } : null;
       const area = latLngBounds(bounds);
       const zoom = Math.min(9, map.getBoundsZoom(area, false, topLeft.add(bottomRight)));
       const middle = map.project(area.getSouthWest(), zoom).add(map.project(area.getNorthEast(), zoom)).divideBy(2);
@@ -36,16 +50,25 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
       map.stop();
       if (reducedMotion()) map.setView(target, zoom, { animate: false });
       else map.flyTo(target, zoom, { duration: 0.68 });
+    }
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fit);
     });
-    return () => cancelAnimationFrame(frame);
+    observer.observe(map.getContainer());
+    if (overlay) observer.observe(overlay);
+    frame = requestAnimationFrame(fit);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [map, bounds, panel, following, fitRevision, fitReady, localFocus]);
   const lat = tracked?.lat;
   const lon = tracked?.lon;
   useEffect(() => {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return;
-    const overlay = panel.current?.getBoundingClientRect();
-    const mobile = matchMedia('(max-width: 720px)').matches;
-    const offset = mobile ? point(0, (overlay?.height ?? 0) / 2) : point((overlay?.width ?? 0) / 2, 0);
+    const { topLeft, bottomRight } = mapPadding(map, panel.current);
+    const offset = bottomRight.subtract(topLeft).divideBy(2);
     const screen = map.latLngToContainerPoint([lat, lon]);
     const target = map.getSize().divideBy(2).subtract(offset);
     if (target.distanceTo(screen) <= 38) return;
@@ -65,10 +88,11 @@ function aircraftIcon(heading, active) {
   });
 }
 
-const traceStyle = { color: '#087a70', weight: 4, opacity: 1, className: 'observed-trace' };
-const guideStyle = { color: '#5d6681', weight: 2, opacity: 0.94, dashArray: '4 8' };
-const replayStyle = { color: '#b96009', weight: 4, opacity: 1, className: 'observed-trace' };
-const liveTrailStyle = { color: '#0966b3', weight: 4, opacity: 0.95, className: 'observed-trace' };
+const traceStyle = { color: '#087a70', weight: 4, opacity: 1 };
+const guideStyle = { color: '#4d5d77', weight: 3, opacity: 0.9, dashArray: '3 9' };
+const gapStyle = { color: '#087a70', weight: 2, fillColor: '#fff', fillOpacity: 1 };
+const replayStyle = { color: '#b96009', weight: 4, opacity: 1 };
+const liveTrailStyle = { color: '#0966b3', weight: 4, opacity: 0.95 };
 
 function TraceLine({ positions, animate }) {
   const line = useRef(null);
@@ -82,7 +106,7 @@ function TraceLine({ positions, animate }) {
     );
     return () => animation.cancel();
   }, [positions, animate]);
-  return <Polyline ref={line} positions={positions} interactive={false} pathOptions={traceStyle} />;
+  return <Polyline ref={line} positions={positions} interactive={false} className="observed-trace" pathOptions={traceStyle} />;
 }
 
 function CoveragePin({ position, label, at }) {
@@ -172,9 +196,11 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         <Tooltip direction="bottom" offset={[0, 5]}>Entzheim · SXB</Tooltip>
       </CircleMarker>}
       {geometry && <>
-        <Polyline positions={geometry.guides} interactive={false} pathOptions={guideStyle} />
+        <Polyline positions={geometry.guides} interactive={false} className="observed-trace" pathOptions={guideStyle} />
         {geometry.tracks.map((segment, index) => <TraceLine key={index} positions={segment} animate={!localTrace} />)}
-        {replayLine && <Polyline positions={replayLine} interactive={false} pathOptions={replayStyle} />}
+        {geometry.tracks.slice(1).map((segment, index) => <GapPins key={index}
+          before={geometry.tracks[index].at(-1)} after={segment[0]} />)}
+        {replayLine && <Polyline positions={replayLine} interactive={false} className="observed-trace" pathOptions={replayStyle} />}
         <AirportPin position={geometry.from} airport={route?.from}
           title={route?.observedDeparture ? 'Départ observé' : route?.probableDeparture ? 'Départ probable' : 'Départ annoncé'} />
         <AirportPin position={geometry.to} airport={route?.to} title="Arrivée annoncée" arrival />
@@ -186,10 +212,17 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
       )}
       {focus && <Aircraft key={focus.revision} plane={focus.plane} active
         flightNumber={flightNumber} flightTime={flightTime} onSelect={onSelect} />}
-      {trail.length > 0 && <Polyline positions={trail} interactive={false} pathOptions={liveTrailStyle} />}
+      {trail.length > 0 && <Polyline positions={trail} interactive={false} className="observed-trace" pathOptions={liveTrailStyle} />}
       {moved && <LivePosition plane={livePosition} stale={!tracked} />}
       {replayPosition && <CircleMarker center={replayPosition} radius={7} interactive={false}
         pathOptions={{ color: '#fff', weight: 2, fillColor: '#ad5700', fillOpacity: 1 }} />}
     </MapContainer>
   );
+}
+
+function GapPins({ before, after }) {
+  return <>
+    <CircleMarker center={before} radius={3} interactive={false} pathOptions={gapStyle} />
+    <CircleMarker center={after} radius={3} interactive={false} pathOptions={gapStyle} />
+  </>;
 }
