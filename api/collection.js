@@ -36,6 +36,7 @@ async function collection(sql, owner) {
     ),
     models AS (
       SELECT model_code AS code, COALESCE(max(model), model_code) AS name,
+        (array_agg(aircraft ORDER BY captured_at DESC))[1] AS aircraft,
         count(*)::int AS count, sum(observed_km) AS kilometers, sum(route_km) AS route_km
       FROM own WHERE model_code IS NOT NULL GROUP BY model_code
     ),
