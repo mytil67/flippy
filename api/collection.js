@@ -5,6 +5,7 @@ import { accountUser } from '../lib/account.js';
 import { distanceKm } from '../lib/flight.js';
 import { flightTrace } from '../lib/trace.js';
 import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
+import { airportByCode } from '../lib/airportLookup.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], recent: [] };
 let evidenceSchema;
@@ -43,6 +44,10 @@ async function collection(sql, owner) {
         count(*)::int AS count, sum(observed_km) AS kilometers, sum(route_km) AS route_km
       FROM own WHERE airline_code IS NOT NULL GROUP BY airline_code
     ),
+    record_capture AS (
+      SELECT * FROM own WHERE route_km IS NOT NULL
+      ORDER BY route_km DESC, captured_at DESC LIMIT 1
+    ),
     recent AS (
       SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
         airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
@@ -53,15 +58,36 @@ async function collection(sql, owner) {
     SELECT count(*)::int AS count, count(DISTINCT aircraft)::int AS aircraft,
       count(observed_km)::int AS measured, COALESCE(sum(observed_km), 0) AS kilometers,
       count(route_km)::int AS "routeCount", sum(route_km) AS "routeKilometers",
-      (SELECT json_build_object('flight', COALESCE(flight_number, NULLIF(callsign, ''), registration, aircraft),
-        'kilometers', route_km) FROM own WHERE route_km IS NOT NULL
-        ORDER BY route_km DESC, captured_at DESC LIMIT 1) AS record,
+      (SELECT json_build_object(
+        'flight', COALESCE(record.flight_number, NULLIF(record.callsign, ''), record.registration, record.aircraft),
+        'kilometers', record.route_km, 'aircraft', record.aircraft, 'callsign', record.callsign,
+        'captured_at', record.captured_at, 'flight_number', record.flight_number,
+        'registration', record.registration, 'model_code', record.model_code, 'model', record.model,
+        'airline_code', record.airline_code, 'airline_iata', record.airline_iata, 'airline', record.airline,
+        'observed_km', record.observed_km, 'departure_code', record.departure_code,
+        'arrival_code', record.arrival_code, 'route_status', record.route_status,
+        'captured_lat', record.captured_lat, 'captured_lon', record.captured_lon,
+        'encounterCount', (SELECT count(*)::int FROM own encounter WHERE encounter.aircraft = record.aircraft),
+        'routeCaptureCount', (SELECT count(*)::int FROM own same_route
+          WHERE same_route.departure_code = record.departure_code AND same_route.arrival_code = record.arrival_code),
+        'history', (SELECT COALESCE(json_agg(history ORDER BY history.captured_at DESC), '[]') FROM (
+          SELECT previous.captured_at, previous.flight_number, previous.callsign,
+            previous.departure_code, previous.arrival_code, previous.route_km, previous.route_status
+          FROM own previous WHERE previous.aircraft = record.aircraft
+          ORDER BY previous.captured_at DESC LIMIT 8
+        ) history)
+      ) FROM record_capture record) AS record,
       COALESCE((SELECT json_agg(planes ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM planes), '[]') AS planes,
       COALESCE((SELECT json_agg(models ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM models), '[]') AS models,
       COALESCE((SELECT json_agg(airlines ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM airlines), '[]') AS airlines,
       COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent
     FROM own`;
-  return { ...row, kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
+  const record = row.record ? {
+    ...row.record,
+    from: airportByCode(row.record.departure_code),
+    to: airportByCode(row.record.arrival_code)
+  } : null;
+  return { ...row, record, kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
 function observedDistance(segments) {

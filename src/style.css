@@ -355,6 +355,38 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .route-status-conflict { border-color: #d36e64; background: #432522; color: #ffb0a5; }
 .capture-route-evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .collection-stats div > span { color: var(--muted); font-size: 12px; }
+.collection-record a { display: inline-flex; margin-top: 9px; color: #ffc0ae; font-size: 11px; font-weight: 800; text-underline-offset: 3px; }
+.record-flight { margin-top: 20px; overflow: hidden; border: 1px solid #416473; border-left: 5px solid var(--amber); border-radius: 5px 24px 24px 5px; background: #0a2431; }
+.record-flight > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; }
+.record-flight > header p { color: #ffc0ae; font-size: 12px; font-weight: 800; }
+.record-flight > header h2 { margin-top: 2px; font-size: clamp(29px, 5vw, 48px); line-height: .96; letter-spacing: -.055em; overflow-wrap: anywhere; }
+.record-flight > header > div:first-child > span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.record-flight-distance { display: grid; justify-items: end; gap: 7px; text-align: right; }
+.record-flight-distance > strong { color: var(--mint); font-size: clamp(20px, 3vw, 31px); line-height: 1; font-variant-numeric: tabular-nums; }
+.record-flight-route { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 18px; margin: 0 22px; padding: 15px 0; border-block: 1px solid var(--line); }
+.record-flight-route > div:last-child { text-align: right; }
+.record-flight-route small, .record-flight-route span { display: block; color: var(--muted); font-size: 11px; }
+.record-flight-route strong { display: block; margin: 2px 0 3px; font: 800 clamp(27px, 4vw, 38px)/1 ui-monospace, monospace; letter-spacing: -.065em; }
+.record-flight-route b { color: var(--amber); font-size: 23px; transform: rotate(35deg); }
+.record-flight-layout { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(260px, .75fr); min-height: 330px; margin-top: 18px; border-top: 1px solid var(--line); }
+.record-route-map, .record-map-missing { position: relative; z-index: 0; width: 100%; min-height: 330px; background: #d6e3e5; }
+.record-route-map .leaflet-tile-pane { filter: saturate(.38) contrast(.94) brightness(1.04) hue-rotate(-7deg); }
+.record-route-map .leaflet-tooltip { max-width: 180px; white-space: normal; border: 0; border-radius: 7px; background: #f8faf6ed; color: var(--ink); box-shadow: 0 4px 12px #07192338; font: 11px/1.25 inherit; }
+.record-route-map .leaflet-control-attribution { font-size: 8px; }
+.record-map-missing { display: grid; place-items: center; padding: 24px; color: var(--ink); font-size: 13px; text-align: center; }
+.record-flight-log { min-width: 0; padding: 18px; border-left: 1px solid var(--line); background: #0e2b38; }
+.record-flight-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--line); }
+.record-flight-facts p { min-width: 0; padding: 10px; background: #102f3d; }
+.record-flight-facts strong, .record-flight-facts span { display: block; overflow-wrap: anywhere; }
+.record-flight-facts strong { color: var(--mint); font-size: 17px; }
+.record-flight-facts span { margin-top: 2px; color: var(--muted); font-size: 9px; line-height: 1.25; }
+.record-flight-log h3 { margin: 18px 0 9px; font-size: 14px; }
+.record-history { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.record-history li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.record-history time { color: #edf7f8; font-size: 11px; font-weight: 750; }
+.record-history span { color: var(--muted); font-size: 10px; }
+.record-history strong { grid-column: 2; grid-row: 1 / span 2; align-self: center; color: var(--mint); font-size: 11px; font-variant-numeric: tabular-nums; }
+.record-history-more { margin-top: 8px; color: var(--muted); font-size: 10px; }
 .ticket-distance { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0; font-size: 12px; }
 .ticket-distance strong { color: #08695f; font-size: 16px; }
 .ticket-distance small { color: #425d60; }
@@ -400,6 +432,9 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .collection-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 8px; }
   .collection-insights > header { align-items: start; flex-direction: column; }
   .collection-insights > header > span { max-width: none; text-align: left; }
+  .record-flight-layout { grid-template-columns: minmax(0, 1fr); }
+  .record-route-map, .record-map-missing { min-height: 300px; }
+  .record-flight-log { border-left: 0; border-top: 1px solid var(--line); }
   .insight-grid { grid-template-columns: minmax(0, 1fr); }
   .insight-grid > section + section { border-left: 0; border-top: 1px solid var(--line); }
   .collection-tabs button { padding-inline: 7px; }
@@ -437,6 +472,12 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .collection-intro { padding-bottom: 22px !important; }
   .collection-intro p { margin-top: 12px; }
   .route-reliability header { align-items: start; flex-direction: column; gap: 5px; }
+  .record-flight > header { flex-direction: column; gap: 10px; padding: 17px; }
+  .record-flight-distance { justify-items: start; text-align: left; }
+  .record-flight-route { margin-inline: 17px; gap: 9px; }
+  .record-flight-route span { display: none; }
+  .record-route-map, .record-map-missing { min-height: 260px; }
+  .record-flight-facts { grid-template-columns: minmax(0, 1fr); }
   .capture-detail { width: calc(100% - 16px); max-height: calc(100% - 16px); margin: auto auto 8px; border-radius: 24px 24px 10px 10px; }
   .capture-detail-sheet { grid-template-columns: minmax(0, 1fr); }
   .capture-detail .aircraft-art { min-height: 175px; max-height: 175px; }

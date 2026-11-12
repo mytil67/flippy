@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { latLngBounds } from 'leaflet';
 import { knownAirline } from '../lib/flight.js';
 import { collectionInsights, routeEvidenceGroup, routeReliability } from './collectionInsights.js';
 
@@ -213,6 +215,89 @@ function InsightBars({ items, empty, suffix = 'capture' }) {
   </ol> : <p className="insight-empty">{empty}</p>;
 }
 
+function RecordMapFit({ points }) {
+  const map = useMap();
+  useEffect(() => {
+    const fit = () => {
+      map.invalidateSize();
+      map.fitBounds(latLngBounds(points), { padding: [34, 34], maxZoom: 5, animate: false });
+    };
+    const frame = requestAnimationFrame(fit);
+    const observer = new ResizeObserver(fit);
+    observer.observe(map.getContainer());
+    return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+  }, [map, points]);
+  return null;
+}
+
+function RecordRouteMap({ record }) {
+  const fromLat = record.from?.lat;
+  const fromLon = record.from?.lon;
+  const toLat = record.to?.lat;
+  const toLon = record.to?.lon;
+  const destinationLon = Number.isFinite(toLon) && Number.isFinite(fromLon)
+    ? toLon + Math.round((fromLon - toLon) / 360) * 360 : toLon;
+  const points = useMemo(() => [[fromLat, fromLon], [toLat, destinationLon]],
+    [fromLat, fromLon, toLat, destinationLon]);
+  if (!record.from || !record.to) return <div className="record-map-missing">La carte sera disponible lorsque les coordonnées des aéroports seront connues.</div>;
+  const captured = Number.isFinite(record.captured_lat) && Number.isFinite(record.captured_lon)
+    ? [record.captured_lat, record.captured_lon + Math.round((record.from.lon - record.captured_lon) / 360) * 360] : null;
+  return <MapContainer className="record-route-map" center={points[0]} zoom={3} zoomControl={false}
+    scrollWheelZoom={false} dragging={true} attributionControl>
+    <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
+    <RecordMapFit points={points} />
+    <Polyline positions={points} interactive={false} pathOptions={{ color: '#087a70', weight: 4, dashArray: '3 9' }} />
+    <CircleMarker center={points[0]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#8fe1d1', fillOpacity: 1 }}>
+      <Tooltip permanent direction="top"><strong>{record.from.code}</strong> · {record.from.name}</Tooltip>
+    </CircleMarker>
+    <CircleMarker center={points[1]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#ff714a', fillOpacity: 1 }}>
+      <Tooltip permanent direction="bottom"><strong>{record.to.code}</strong> · {record.to.name}</Tooltip>
+    </CircleMarker>
+    {captured && <CircleMarker center={captured} radius={6} pathOptions={{ color: '#fff', weight: 2, fillColor: '#0966b3', fillOpacity: 1 }}>
+      <Tooltip direction="top">Position de ta capture</Tooltip>
+    </CircleMarker>}
+  </MapContainer>;
+}
+
+function RecordFlight({ record }) {
+  const encounters = record.encounterCount ?? record.history?.length ?? 1;
+  const routeCaptures = record.routeCaptureCount ?? 1;
+  return <section id="record-flight" className="record-flight" aria-labelledby="record-flight-title">
+    <header>
+      <div><p>Ton record de distance</p><h2 id="record-flight-title">{record.flight}</h2>
+        {record.airline && <span>{record.airline}</span>}</div>
+      <div className="record-flight-distance"><strong>{distance(record.kilometers)}</strong><RouteStatus value={record.route_status} /></div>
+    </header>
+    <div className="record-flight-route">
+      <div><small>Départ</small><strong>{record.departure_code}</strong><span>{record.from?.name || 'Aéroport identifié'}</span></div>
+      <b aria-hidden="true">✈</b>
+      <div><small>Arrivée</small><strong>{record.arrival_code}</strong><span>{record.to?.name || 'Aéroport identifié'}</span></div>
+    </div>
+    <div className="record-flight-layout">
+      <RecordRouteMap record={record} />
+      <div className="record-flight-log">
+        <div className="record-flight-facts">
+          <p><strong>{encounters}</strong><span>capture{encounters === 1 ? '' : 's'} de cet appareil</span></p>
+          <p><strong>{routeCaptures}</strong><span>fois sur cette route</span></p>
+          <p><strong>{record.registration || '—'}</strong><span>{record.model || record.model_code || 'Appareil non identifié'}</span></p>
+          <p><strong>{record.observed_km == null ? '—' : distance(record.observed_km)}</strong><span>trace ADS-B observée</span></p>
+        </div>
+        <h3>{encounters > 1 ? 'Tes rencontres avec cet appareil' : 'Première rencontre avec cet appareil'}</h3>
+        <ol className="record-history">
+          {(record.history ?? []).map((capture, index) => <li key={`${capture.captured_at}:${index}`}>
+            <time dateTime={capture.captured_at}>{date.format(new Date(capture.captured_at))}</time>
+            <span>{capture.departure_code && capture.arrival_code
+              ? `${capture.departure_code} → ${capture.arrival_code}` : 'Trajet non identifié'}</span>
+            {capture.route_km != null && <strong>{distance(capture.route_km)}</strong>}
+          </li>)}
+        </ol>
+        {encounters > (record.history?.length ?? 0) && <p className="record-history-more">Les {record.history?.length ?? 0} rencontres les plus récentes sont affichées.</p>}
+      </div>
+    </div>
+  </section>;
+}
+
 function CollectionInsights({ data }) {
   const insights = useMemo(() => collectionInsights(data), [data]);
   if (!data.count) return null;
@@ -316,9 +401,11 @@ export default function Collection() {
             <div><dt>Captures</dt><dd>{number.format(data.count)}</dd><span>{number.format(data.aircraft)} avion{data.aircraft === 1 ? '' : 's'} distinct{data.aircraft === 1 ? '' : 's'}</span></div>
             <div><dt>Total départ → arrivée</dt><dd>{data.routeKilometers == null ? '—' : distance(data.routeKilometers)}</dd></div>
             <div><dt>Distance observée</dt><dd>{distance(data.kilometers)}</dd></div>
-            {data.record && <div className="collection-record"><dt>Plus long trajet</dt><dd>{distance(data.record.kilometers)}</dd><span>{data.record.flight}</span></div>}
+            {data.record && <div className="collection-record"><dt>Plus long trajet</dt><dd>{distance(data.record.kilometers)}</dd><span>{data.record.flight}</span>
+              <a href="#record-flight">Voir le trajet et l’historique</a></div>}
           </dl>
           {data.count > 0 && <p className="collection-note">Trajets calculés à vol d’oiseau entre aéroports pour {data.routeCount ?? 0} captures sur {data.count}. La distance observée couvre les segments ADS-B disponibles.</p>}
+          {data.record && <RecordFlight record={data.record} />}
           <CollectionInsights data={data} />
           <nav className="collection-tabs" aria-label="Vues de la collection">
             {tabs.map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { if (key !== tab) changeTab(key); }}>
