@@ -7,6 +7,7 @@ import { buildTraceGeometry } from './traceGeometry.js';
 import { flightDurationLabel } from './flightDuration.js';
 import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
+import { orderTraffic } from './trafficSort.js';
 
 const demo = [
   { id: 'demo-af', callsign: 'AFR1234', registration: 'F-GKXJ', type: 'A320', model: 'Airbus A320', lat: 48.78, lon: 7.98, altitude: 12400, heading: 150, speed: 390,
@@ -175,6 +176,7 @@ function trafficPageSize() {
 function TrafficPanel({ planes, matches, selected, query, searching, status, route, searchDetails, onQuery, onSelect, onClose }) {
   const [pageSize, setPageSize] = useState(trafficPageSize);
   const [requestedPage, setRequestedPage] = useState(0);
+  const [sort, setSort] = useState('distance');
   const closeButton = useRef(null);
   useEffect(() => {
     closeButton.current.focus({ preventScroll: true });
@@ -182,12 +184,13 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
     window.addEventListener('resize', resize);
     return () => window.removeEventListener('resize', resize);
   }, []);
-  const lastPage = Math.max(0, Math.ceil(matches.length / pageSize) - 1);
+  const orderedMatches = useMemo(() => orderTraffic(matches, sort), [matches, sort]);
+  const lastPage = Math.max(0, Math.ceil(orderedMatches.length / pageSize) - 1);
   const page = Math.min(requestedPage, lastPage);
   const start = page * pageSize;
-  const end = Math.min(matches.length, start + pageSize);
-  const summary = lastPage > 0 ? `${start + 1}–${end} sur ${matches.length}` :
-    `${matches.length} ${query.trim() ? 'résultat' : 'vol'}${matches.length === 1 ? '' : 's'}`;
+  const end = Math.min(orderedMatches.length, start + pageSize);
+  const summary = lastPage > 0 ? `${start + 1}–${end} sur ${orderedMatches.length}` :
+    `${orderedMatches.length} ${query.trim() ? 'résultat' : 'vol'}${orderedMatches.length === 1 ? '' : 's'}`;
   const nearest = planes[0];
   const highest = planes.reduce((current, plane) => !current || (plane.altitude ?? -1) > (current.altitude ?? -1) ? plane : current, null);
 
@@ -211,12 +214,17 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
         onChange={event => { setRequestedPage(0); onQuery(event.target.value); }}
         placeholder="Indicatif, compagnie ou appareil" maxLength={60} />
     </label>
+    <div className="traffic-sort" role="group" aria-label="Trier les vols">
+      <span>Trier</span>
+      {[['distance', 'Proximité'], ['altitude', 'Altitude'], ['speed', 'Vitesse']].map(([key, label]) =>
+        <button key={key} type="button" aria-pressed={sort === key} onClick={() => { setSort(key); setRequestedPage(0); }}>{label}</button>)}
+    </div>
     {planes.length > 0 && <dl className="traffic-overview">
       <div><dt>Le plus proche</dt><dd>{unit(nearest?.distance, 'km')}</dd></div>
       <div><dt>Altitude maximale</dt><dd>{unit(highest?.altitude, 'pi')}</dd></div>
     </dl>}
-    {matches.length ? <ul className="traffic-list">
-      {matches.slice(start, end).map(plane => {
+    {orderedMatches.length ? <ul className="traffic-list">
+      {orderedMatches.slice(start, end).map(plane => {
         const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
         const airline = details?.airline ?? plane.airline;
         const routeLabel = details?.from?.code && details?.to?.code ? `${details.from.code} → ${details.to.code}` : null;
@@ -229,7 +237,7 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
       })}
     </ul> : <p className="traffic-empty" role="status">{query.trim() ? (searching ? 'Recherche en cours…' : 'Aucun vol trouvé.') :
       status === 'En direct' ? 'Aucun avion signalé dans la zone.' : status}</p>}
-    {matches.length > 0 && <footer>
+    {orderedMatches.length > 0 && <footer>
       <p role="status">{summary}{searching && ' · Recherche…'}</p>
       {lastPage > 0 && <div className="traffic-pages" role="group" aria-label="Pages de vols">
         <button type="button" className="traffic-icon" aria-label="Vols précédents" aria-disabled={page === 0}

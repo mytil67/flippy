@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { knownAirline } from '../lib/flight.js';
+import { collectionInsights } from './collectionInsights.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
@@ -164,6 +165,55 @@ function CollectionCard({ item, tab, onOpen }) {
   </div></li>;
 }
 
+function InsightBars({ items, empty, suffix = 'capture' }) {
+  const maximum = Math.max(1, ...items.map(item => item.count));
+  return items.length ? <ol className="insight-bars">
+    {items.map(item => <li key={item.label} aria-label={`${item.label}, ${item.count} ${suffix}${item.count === 1 ? '' : 's'}`}>
+      <div><strong>{item.label}</strong><span>{item.count}</span></div>
+      <i aria-hidden="true"><span style={{ width: `${item.count / maximum * 100}%` }} /></i>
+    </li>)}
+  </ol> : <p className="insight-empty">{empty}</p>;
+}
+
+function CollectionInsights({ data }) {
+  const insights = useMemo(() => collectionInsights(data), [data]);
+  if (!data.count) return null;
+  const periodMaximum = Math.max(1, ...insights.periods.map(period => period.count));
+  return <section className="collection-insights" aria-labelledby="insights-title">
+    <header>
+      <div><h2 id="insights-title">Ce que raconte ton ciel</h2>
+        <p>Routes et horaires calculés sur tes {insights.sampleSize} capture{insights.sampleSize === 1 ? '' : 's'} les plus récentes.</p></div>
+      <span>{insights.routeCoverage} % des captures ont un trajet identifié</span>
+    </header>
+    <div className="insight-grid">
+      <section className="insight-story" aria-labelledby="story-title">
+        <h3 id="story-title">Ton trafic en un regard</h3>
+        {insights.topOrigin && insights.topDestination ? <div className="insight-airports">
+          <div><small>Départ fréquent</small><strong>{insights.topOrigin.label}</strong><span>{insights.topOrigin.count} fois</span></div>
+          <b aria-hidden="true">✈</b>
+          <div><small>Arrivée fréquente</small><strong>{insights.topDestination.label}</strong><span>{insights.topDestination.count} fois</span></div>
+        </div> : <p className="insight-empty">Capture encore quelques trajets pour faire apparaître les aéroports récurrents.</p>}
+        {insights.topAirline && <div className="insight-airline"><CompanyLogo code={insights.topAirline.code} iata={insights.topAirline.iata} name={insights.topAirline.name} />
+          <p><strong>{insights.topAirline.name}</strong><span>Compagnie la plus croisée · {insights.topAirline.count} capture{insights.topAirline.count === 1 ? '' : 's'}</span></p></div>}
+      </section>
+      <section aria-labelledby="routes-title">
+        <h3 id="routes-title">Routes qui reviennent</h3>
+        <InsightBars items={insights.routes} empty="Les prochaines captures avec un départ et une arrivée dessineront tes routes habituelles." />
+      </section>
+      <section aria-labelledby="periods-title">
+        <h3 id="periods-title">Quand le ciel s’anime</h3>
+        <ol className="insight-bars insight-periods">
+          {insights.periods.map(period => <li key={period.key} aria-label={`${period.label}, ${period.count} captures`}>
+            <div><strong>{period.label}</strong><span>{period.count}</span></div>
+            <i aria-hidden="true"><span style={{ width: `${period.count / periodMaximum * 100}%` }} /></i>
+            <small>{period.range}</small>
+          </li>)}
+        </ol>
+      </section>
+    </div>
+  </section>;
+}
+
 export default function Collection() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
@@ -227,6 +277,7 @@ export default function Collection() {
             {data.record && <div className="collection-record"><dt>Plus long trajet</dt><dd>{distance(data.record.kilometers)}</dd><span>{data.record.flight}</span></div>}
           </dl>
           {data.count > 0 && <p className="collection-note">Trajets calculés à vol d’oiseau entre aéroports pour {data.routeCount ?? 0} captures sur {data.count}. La distance observée couvre les segments ADS-B disponibles.</p>}
+          <CollectionInsights data={data} />
           <nav className="collection-tabs" aria-label="Vues de la collection">
             {tabs.map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { if (key !== tab) changeTab(key); }}>
               {label}{key !== 'recent' && <span> {data[key].length}</span>}
