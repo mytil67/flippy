@@ -188,6 +188,8 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
   const end = Math.min(matches.length, start + pageSize);
   const summary = lastPage > 0 ? `${start + 1}–${end} sur ${matches.length}` :
     `${matches.length} ${query.trim() ? 'résultat' : 'vol'}${matches.length === 1 ? '' : 's'}`;
+  const nearest = planes[0];
+  const highest = planes.reduce((current, plane) => !current || (plane.altitude ?? -1) > (current.altitude ?? -1) ? plane : current, null);
 
   return <aside id="nearby-flights" className="traffic" aria-labelledby="traffic-title" onKeyDown={event => {
     if (event.key === 'Escape') {
@@ -196,25 +198,33 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
     }
   }}>
     <header>
-      <h2 id="traffic-title">Vols à proximité</h2>
+      <h2 id="traffic-title">Trafic local <span>{planes.length}</span></h2>
       <button type="button" className="nearest-flight" disabled={!planes.length} onClick={() => {
         onQuery('');
         onSelect(planes[0]);
       }}>Le plus proche</button>
       <button ref={closeButton} type="button" className="traffic-icon" aria-label="Fermer les vols à proximité" onClick={onClose}><Icon name="close" /></button>
     </header>
-    <input type="search" aria-label="Rechercher un vol, une compagnie ou un appareil" value={query}
-      onChange={event => { setRequestedPage(0); onQuery(event.target.value); }}
-      placeholder="Vol, compagnie ou appareil" maxLength={60} />
+    <label className="traffic-search">
+      <span>Rechercher dans le trafic</span>
+      <input type="search" aria-label="Rechercher un vol, une compagnie ou un appareil" value={query}
+        onChange={event => { setRequestedPage(0); onQuery(event.target.value); }}
+        placeholder="Indicatif, compagnie ou appareil" maxLength={60} />
+    </label>
+    {planes.length > 0 && <dl className="traffic-overview">
+      <div><dt>Le plus proche</dt><dd>{unit(nearest?.distance, 'km')}</dd></div>
+      <div><dt>Altitude maximale</dt><dd>{unit(highest?.altitude, 'pi')}</dd></div>
+    </dl>}
     {matches.length ? <ul className="traffic-list">
       {matches.slice(start, end).map(plane => {
         const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
         const airline = details?.airline ?? plane.airline;
+        const routeLabel = details?.from?.code && details?.to?.code ? `${details.from.code} → ${details.to.code}` : null;
         return <li key={plane.id}><button type="button" onClick={() => onSelect(plane)} aria-current={plane.id === selected?.id ? 'true' : undefined}>
           <AirlineLogo key={airline?.iata} airline={airline} /><span className="traffic-name">
             <strong>{details?.number || plane.callsign || plane.registration || plane.id.toUpperCase()}</strong>
-            <small>{airline?.name || plane.model || plane.type || 'Avion non identifié'}</small>
-          </span><span className="traffic-distance">{unit(plane.distance, 'km')}</span><Icon name="next" />
+            <small>{routeLabel || airline?.name || plane.model || plane.type || 'Avion non identifié'}</small>
+          </span><span className="traffic-data"><strong>{unit(plane.distance, 'km')}</strong><small>{unit(plane.altitude, 'pi')}</small></span><Icon name="next" />
         </button></li>;
       })}
     </ul> : <p className="traffic-empty" role="status">{query.trim() ? (searching ? 'Recherche en cours…' : 'Aucun vol trouvé.') :

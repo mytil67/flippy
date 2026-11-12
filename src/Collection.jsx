@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { knownAirline } from '../lib/flight.js';
 
 const number = new Intl.NumberFormat('fr-FR');
@@ -102,11 +102,48 @@ function Account({ data, onUpdate }) {
   </section>;
 }
 
-function CollectionCard({ item, tab }) {
+function CaptureDetail({ item, onClose }) {
+  const dialog = useRef(null);
+  const flight = item.flight_number || item.callsign || item.registration || item.aircraft?.toUpperCase();
+  useEffect(() => {
+    dialog.current?.showModal();
+  }, []);
+  return <dialog ref={dialog} className="capture-detail" aria-labelledby="capture-detail-title" onClose={onClose}
+    onClick={event => { if (event.target === event.currentTarget) event.currentTarget.close(); }}>
+    <div className="capture-detail-sheet">
+      <AircraftArt code={item.model_code} />
+      <div className="capture-detail-content">
+        <header>
+          <div>
+            <p>Capture du {date.format(new Date(item.captured_at))}</p>
+            <h2 id="capture-detail-title">{flight}</h2>
+            <span>{item.airline || item.model || 'Appareil non identifié'}</span>
+          </div>
+          <button type="button" aria-label="Fermer la fiche" onClick={() => dialog.current?.close()}>×</button>
+        </header>
+        {item.departure_code && item.arrival_code ? <div className="capture-detail-route">
+          <div><small>Départ</small><strong>{item.departure_code}</strong></div>
+          <span aria-hidden="true">✈</span>
+          <div><small>Arrivée</small><strong>{item.arrival_code}</strong></div>
+        </div> : <p className="capture-detail-unknown">Le trajet n’a pas pu être identifié pour cette capture.</p>}
+        <dl className="capture-detail-facts">
+          <div><dt>Appareil</dt><dd>{item.model || item.model_code || '—'}</dd></div>
+          <div><dt>Immatriculation</dt><dd>{item.registration || '—'}</dd></div>
+          <div><dt>Trajet complet</dt><dd>{distance(item.route_km)}</dd></div>
+          <div><dt>Trace observée</dt><dd>{distance(item.observed_km)}</dd></div>
+        </dl>
+        {item.airline && <div className="capture-detail-airline"><CompanyLogo code={item.airline_code} iata={item.airline_iata}
+          flight={item.flight_number} name={item.airline} /><span>{item.airline}</span></div>}
+      </div>
+    </div>
+  </dialog>;
+}
+
+function CollectionCard({ item, tab, onOpen }) {
   const recent = tab === 'recent';
   const airline = tab === 'airlines';
   const flight = item.flight_number || item.callsign || item.registration || item.aircraft?.toUpperCase();
-  return <li className="collection-card">
+  const content = <>
     {airline ? <div className="company-art"><CompanyLogo code={item.code} iata={item.iata} name={item.name} /></div> :
       <AircraftArt code={tab === 'models' ? item.code : item.model_code} />}
     <div className="collection-card-body">
@@ -121,7 +158,10 @@ function CollectionCard({ item, tab }) {
         <span>{item.route_km != null && (recent ? ' · départ → arrivée' : ' · trajets cumulés')}</span></div>
       <span>{distance(recent ? item.observed_km : item.kilometers)}{(recent ? item.observed_km : item.kilometers) != null && ' observés'}</span>
       <span>{recent ? date.format(new Date(item.captured_at)) : `${item.count} capture${item.count === 1 ? '' : 's'}`}</span></div>
-  </li>;
+  </>;
+  return <li className="collection-card-item"><div className="collection-card">{content}
+    {recent && <button type="button" className="collection-card-open" onClick={() => onOpen(item)}>Voir la fiche de {flight}</button>}
+  </div></li>;
 }
 
 export default function Collection() {
@@ -132,6 +172,7 @@ export default function Collection() {
   const [sort, setSort] = useState('default');
   const [accountOpen, setAccountOpen] = useState(window.location.hash === '#compte');
   const [attempt, setAttempt] = useState(0);
+  const [detail, setDetail] = useState(null);
   useEffect(() => {
     document.title = 'Ma collection — Flippy';
     const controller = new AbortController();
@@ -201,7 +242,8 @@ export default function Collection() {
           </div>}
           {term && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
           {visible.length ? <ul className="collection-list" aria-label={tabs.find(([key]) => key === tab)[1]}>
-            {visible.map(item => <CollectionCard key={item.code ?? `${item.aircraft}:${item.callsign}:${item.captured_at}`} item={item} tab={tab} />)}
+            {visible.map(item => <CollectionCard key={item.code ?? `${item.aircraft}:${item.callsign}:${item.captured_at}`}
+              item={item} tab={tab} onOpen={setDetail} />)}
           </ul> : <div className="collection-empty">
             {term ? <p>Aucun résultat pour cette recherche.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
               <p>Sélectionne un avion en direct et clique sur « Capturer » pour commencer.</p>
@@ -211,6 +253,7 @@ export default function Collection() {
         </section>
         {showAccount && <Account data={data} onUpdate={next => { setData(next); changeTab('recent'); }} />}
       </div>}
+      {detail && <CaptureDetail item={detail} onClose={() => setDetail(null)} />}
     </div>
   </main>;
 }

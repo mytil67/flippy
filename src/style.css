@@ -181,7 +181,8 @@ button:active:not(:disabled) { transform: translateY(1px); }
   border: 1px solid var(--line); box-shadow: var(--shadow); animation: panel-enter 220ms var(--ease) both;
 }
 .traffic header, .traffic footer { display: flex; align-items: center; gap: 7px; }
-.traffic h2 { margin-right: auto; font-size: 15px; }
+.traffic h2 { margin-right: auto; font-size: 18px; letter-spacing: -.02em; }
+.traffic h2 span { display: inline-grid; place-items: center; min-width: 23px; height: 23px; margin-left: 5px; padding: 0 6px; border-radius: 8px; color: #092b2c; background: var(--mint); font-size: 11px; vertical-align: 2px; }
 .traffic .nearest-flight, .traffic-icon {
   display: inline-grid; place-items: center; min-height: 36px; color: var(--mint); background: #0c202e;
   border: 1px solid var(--line); border-radius: 8px;
@@ -191,8 +192,15 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .traffic-icon .ui-icon { width: 16px; height: 16px; }
 .traffic .nearest-flight:hover:not(:disabled), .traffic-icon:hover:not([aria-disabled="true"]) { background: var(--raised); border-color: #568579; }
 .traffic .nearest-flight:disabled, .traffic-icon[aria-disabled="true"] { opacity: .45; cursor: default; }
-.traffic input { width: 100%; min-height: 40px; border: 1px solid var(--line); border-radius: 9px; background: #0c202e; color: #edf5fd; font-size: 16px; padding: 6px 10px; }
+.traffic-search { display: grid; gap: 6px; }
+.traffic-search > span { color: var(--muted); font-size: 11px; font-weight: 700; }
+.traffic input { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: 12px; background: #071f2b; color: #edf5fd; font-size: 16px; padding: 7px 11px; }
 .traffic input::placeholder { color: var(--muted); }
+.traffic-overview { display: grid; grid-template-columns: 1fr 1fr; margin: 0; border-block: 1px solid var(--line); }
+.traffic-overview div { padding: 9px 8px; }
+.traffic-overview div + div { border-left: 1px solid var(--line); }
+.traffic-overview dt { color: var(--muted); font-size: 10px; }
+.traffic-overview dd { margin-top: 2px; color: #eef9f6; font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .traffic-list { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
 .traffic-list button { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 50px; text-align: left; color: #f3f7fc; background: #133746; border: 1px solid transparent; border-radius: 12px; padding: 7px 9px; }
 .traffic-list button:hover, .traffic-list button[aria-current="true"] { background: #284a58; border-color: #568579; }
@@ -202,8 +210,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .traffic-name { min-width: 0; display: grid; gap: 2px; }
 .traffic-name strong { font-size: 13px; }
 .traffic-name strong, .traffic-name small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.traffic-name small, .traffic-distance, .traffic footer, .traffic-empty { color: var(--muted); font-size: 12px; }
-.traffic-distance { margin-left: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.traffic-name small, .traffic-data, .traffic footer, .traffic-empty { color: var(--muted); font-size: 12px; }
+.traffic-data { display: grid; gap: 1px; margin-left: auto; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.traffic-data strong { color: #eef9f6; font-size: 12px; }
+.traffic-data small { color: var(--muted); font-size: 10px; }
 .traffic footer { justify-content: space-between; min-height: 30px; }
 .traffic-pages { display: flex; gap: 5px; }
 .traffic-empty { padding: 12px 2px; }
@@ -267,7 +277,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-filters select:focus-visible { outline: 2px solid var(--amber); outline-offset: 2px; }
 .collection-result { margin: 0 0 10px; }
 .collection-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 236px), 1fr)); align-items: stretch; gap: 12px; margin: 0; padding: 0; list-style: none; }
-.collection-card { min-width: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; background: #0d2432; }
+.collection-card-item { min-width: 0; display: flex; }
+.collection-card { width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; background: #0d2432; color: inherit; font: inherit; text-align: left; }
+.collection-card-open { min-height: 42px; padding: 8px 11px; border: 0; border-top: 1px solid var(--line); background: #123746; color: var(--mint); font-size: 12px; font-weight: 800; text-align: left; }
+.collection-card-open:hover { background: #1e4b5b; color: #fff; }
 .aircraft-art { position: relative; display: grid; place-items: center; min-height: 128px; overflow: hidden; margin: 0; color: var(--mint); background: radial-gradient(ellipse at center, #244c5b, #102c3d); }
 .aircraft-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 48%; }
 .aircraft-art > span { font-size: clamp(24px, 5vw, 42px); font-weight: 850; letter-spacing: .06em; opacity: .65; }
@@ -293,6 +306,29 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .company-art .collection-logo { justify-self: center; width: 154px; height: 54px; padding: 9px 12px; border: 1px solid #cddcda; border-radius: 10px; }
 .collection-empty { padding: 18px; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; background: var(--surface); color: var(--muted); font-size: 14px; }
 .collection-empty button, .collection-empty a { margin-top: 9px; }
+
+.capture-detail { width: min(820px, calc(100% - 32px)); max-width: none; max-height: min(680px, calc(100% - 32px)); overflow: auto; padding: 0; border: 1px solid #456978; border-radius: 28px 28px 28px 8px; background: #0a2532; color: #eff8f6; box-shadow: 0 28px 90px #020e14a8; }
+.capture-detail::backdrop { background: #03121ad1; backdrop-filter: blur(5px); }
+.capture-detail-sheet { display: grid; grid-template-columns: minmax(250px, .9fr) minmax(0, 1.1fr); min-height: 430px; }
+.capture-detail .aircraft-art { min-height: 100%; }
+.capture-detail .aircraft-art img { object-position: center; }
+.capture-detail-content { display: flex; flex-direction: column; min-width: 0; padding: clamp(20px, 4vw, 36px); }
+.capture-detail-content header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.capture-detail-content header p { color: var(--muted); font-size: 12px; }
+.capture-detail-content header h2 { margin: 4px 0 2px; font-size: clamp(34px, 6vw, 56px); line-height: .95; letter-spacing: -.06em; overflow-wrap: anywhere; }
+.capture-detail-content header span { color: var(--muted); font-size: 14px; }
+.capture-detail-content header button { display: grid; place-items: center; flex: 0 0 42px; height: 42px; border: 1px solid var(--line); border-radius: 13px; background: #123746; color: #eff8f6; font-size: 26px; line-height: 1; }
+.capture-detail-content header button:hover { background: #204c5c; }
+.capture-detail-route { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; margin: 30px 0 24px; padding: 18px 0; border-block: 1px solid var(--line); }
+.capture-detail-route div:last-child { text-align: right; }
+.capture-detail-route small { display: block; color: var(--muted); font-size: 11px; }
+.capture-detail-route strong { display: block; margin-top: 3px; font: 800 32px/1 ui-monospace, monospace; letter-spacing: -.06em; }
+.capture-detail-route > span { color: var(--amber); font-size: 23px; transform: rotate(35deg); }
+.capture-detail-unknown { margin: 30px 0 24px; padding: 16px 0; border-block: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.45; }
+.capture-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; margin: 0; }
+.capture-detail-facts dt { color: var(--muted); font-size: 11px; }
+.capture-detail-facts dd { margin-top: 3px; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; }
+.capture-detail-airline { display: flex; align-items: center; gap: 10px; margin-top: auto; padding-top: 26px; color: var(--muted); font-size: 13px; }
 
 @media (max-width: 720px) {
   .collection-page { padding: 16px 12px; }
@@ -338,6 +374,13 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .collection-header .aircraft-art { min-height: 150px; }
   .collection-intro { padding-bottom: 22px !important; }
   .collection-intro p { margin-top: 12px; }
+  .capture-detail { width: calc(100% - 16px); max-height: calc(100% - 16px); margin: auto auto 8px; border-radius: 24px 24px 10px 10px; }
+  .capture-detail-sheet { grid-template-columns: minmax(0, 1fr); }
+  .capture-detail .aircraft-art { min-height: 175px; max-height: 175px; }
+  .capture-detail-content { padding: 20px; }
+  .capture-detail-content header h2 { font-size: 40px; }
+  .capture-detail-route { margin: 22px 0 19px; }
+  .capture-detail-facts { gap: 13px 16px; }
 }
 @media (max-width: 350px) {
   .signal-detail { display: none; }
