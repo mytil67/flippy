@@ -13,37 +13,68 @@ const catalogDate = value => {
   return Number.isNaN(instant.getTime()) ? value : new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long' }).format(instant);
 };
 
-function ModelSilhouette({ unlocked }) {
-  return <svg viewBox="0 0 220 90" aria-hidden="true" className="album-plane-silhouette">
-    <path d="M11 51 83 43l31-34h18l-14 34 62 3 23-13h9l-12 19 12 19h-9l-23-13-62 3 14 20h-18L83 61l-72-7Z" />
-    {unlocked && <path className="album-silhouette-line" d="M24 52h171M110 44v16" />}
+const hash = value => [...value].reduce((total, character) => total + character.charCodeAt(0), 0);
+const cardPalettes = [
+  ['#ff714a', '#ffd0c3'], ['#2e9f91', '#b8eee2'], ['#4c83b6', '#c9e4ff'],
+  ['#b67b36', '#f5d8ae'], ['#7b6eb5', '#ded7ff']
+];
+const modelFamily = item => {
+  const category = `${item.category || ''} ${item.name || ''}`.toLowerCase();
+  if (/heli|rotor/.test(category)) return 'Hélicoptère';
+  if (/glider|planeur/.test(category)) return 'Planeur';
+  if (/amphib|sea plane|seaplane/.test(category)) return 'Hydravion';
+  if (item.engineType?.toLowerCase().includes('turboprop')) return 'Turbopropulseur';
+  return item.engineType === 'Jet' ? 'Avion à réaction' : 'Aéronef';
+};
+
+function ModelSilhouette({ item }) {
+  const family = modelFamily(item);
+  if (family === 'Hélicoptère') return <svg viewBox="0 0 300 150" aria-hidden="true" className="album-plane-silhouette">
+    <path d="M44 91c2-24 24-42 54-42h33c28 0 51 16 60 39l43 4 18 13-64 3c-10 20-31 32-58 32H90c-24 0-44-20-46-49Zm61-42-23-24h13l34 24Zm28 0 28-33h13l-17 33Z" />
+    <path className="album-silhouette-line" d="M17 18h205M120 18v31M78 140h112M91 140l-14-14m99 14 14-14" />
+  </svg>;
+  if (family === 'Planeur') return <svg viewBox="0 0 300 150" aria-hidden="true" className="album-plane-silhouette">
+    <path d="m18 84 111-15 24-48h13l-8 47 114 16-114 12-7 36h-12l-9-36Z" />
+    <path className="album-silhouette-line" d="M41 84h203M150 70v25" />
+  </svg>;
+  return <svg viewBox="0 0 300 150" aria-hidden="true" className="album-plane-silhouette">
+    <path d="m20 86 103-13 34-57h19l-14 55 76 6 31-18h12l-17 28 17 29h-12l-31-19-76 7 14 31h-19l-34-30L20 91Z" />
+    <path className="album-silhouette-line" d="M39 87h214M151 73v31" />
+    {family === 'Turbopropulseur' && <path className="album-propellers" d="M108 58v58m-15-29h30m70-29v58m-15-29h30" />}
   </svg>;
 }
 
-function AirportSilhouette({ unlocked }) {
-  return <svg viewBox="0 0 220 90" aria-hidden="true" className="album-airport-silhouette">
-    <path d="M28 25h164v40H28z" />
-    <path className="album-runway-mark" d="M43 45h22m12 0h22m12 0h22m12 0h22" />
-    {unlocked && <path className="album-runway-edge" d="M28 20v-8m164 8v-8M28 78v-8m164 8v-8" />}
+function AirportSilhouette({ item, direction }) {
+  return <svg viewBox="0 0 300 150" aria-hidden="true" className="album-airport-silhouette">
+    <path className="album-map-line" d="M-8 31c46 15 62-16 102-5s47 35 86 27 57-35 128-16M-5 122c51-25 72 9 113-6s57-40 96-27 61 42 105 29" />
+    <path d="M49 53h202v54H49z" />
+    <path className="album-runway-mark" d="M67 80h30m14 0h30m14 0h30m14 0h30" />
+    <path className="album-runway-edge" d="M49 46v-12m202 12v-12M49 126v-12m202 12v-12" />
+    <path className={'album-airport-arrow is-' + direction} d="m145 20 10-12 10 12m-10-11v27" />
+    <text x="150" y="145" textAnchor="middle">{item.code}</text>
   </svg>;
 }
 
 function AlbumCard({ item, kind, owned }) {
   const airport = kind !== 'models';
+  const [accent, tint] = cardPalettes[hash(item.code) % cardPalettes.length];
+  const family = airport ? (kind === 'departures' ? 'Point de départ' : 'Destination') : modelFamily(item);
+  const details = airport ? 'Code aéroport · ICAO' :
+    [item.manufacturer, item.engineCount && item.engineType ? `${item.engineCount} × ${item.engineType}` : item.engineType].filter(Boolean).join(' · ') || 'Référence ICAO';
   return <li className={'album-card ' + (owned ? 'is-unlocked' : 'is-locked')}>
-    <article aria-label={`${item.code}, ${item.name}, ${owned ? 'découvert' : 'à découvrir'}`}>
-      <header><strong>{item.code}</strong><span>{owned ? 'Découvert' : 'À découvrir'}</span></header>
+    <article style={{ '--card-accent': accent, '--card-tint': tint }} aria-label={`${item.code}, ${item.name}, ${owned ? 'découvert' : 'à découvrir'}`}>
+      <header><span>{family}</span><strong>{owned ? 'Dans ton hangar' : 'Fiche à débloquer'}</strong></header>
       <div className="album-card-art">
-        {airport ? <AirportSilhouette unlocked={owned} /> : <ModelSilhouette unlocked={owned} />}
-        {!owned && <i aria-hidden="true">?</i>}
+        <span className="album-card-code" aria-hidden="true">{item.code}</span>
+        {airport ? <AirportSilhouette item={item} direction={kind} /> : <ModelSilhouette item={item} />}
+        {!owned && <i aria-hidden="true"><span>?</span></i>}
       </div>
       <div className="album-card-copy">
-        <h3>{item.name || item.code}</h3>
-        <p>{airport ? (kind === 'departures' ? 'Aéroport de départ' : 'Aéroport d’arrivée') :
-          [item.manufacturer, item.engineCount && item.engineType ? `${item.engineCount} × ${item.engineType}` : null].filter(Boolean).join(' · ') || 'Modèle ICAO'}</p>
+        <span className="album-card-designator">{item.code}</span>
+        <h3>{item.name || item.code}</h3><p>{details}</p>
       </div>
-      <footer>{owned ? <><strong>{owned.count}</strong><span>capture{owned.count === 1 ? '' : 's'}</span></> :
-        <span>Capture-le pour compléter la fiche</span>}</footer>
+      <footer>{owned ? <><span className="album-card-seal" aria-hidden="true">✓</span><p><strong>{owned.count}</strong> rencontre{owned.count === 1 ? '' : 's'}<small>Fiche authentifiée</small></p></> :
+        <><span className="album-card-lock" aria-hidden="true">◇</span><p>Pas encore croisé<small>Repère-le sur le radar</small></p></>}</footer>
     </article>
   </li>;
 }
