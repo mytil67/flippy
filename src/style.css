@@ -328,6 +328,28 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .album-categories button:hover { background: #133847; color: #fff; }
 .album-categories button[aria-pressed="true"] { box-shadow: inset 0 -4px var(--amber); background: #163b4a; color: #fff; }
 .album-categories button > span { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; font-weight: 500; }
+.album-atlas { margin: 18px 16px 8px; overflow: hidden; border: 1px solid #3d6070; border-radius: 19px 19px 19px 6px; background: #0d2a38; box-shadow: 0 16px 38px #03121a42; }
+.album-atlas > header { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 17px 18px 12px; }
+.album-atlas h3 { font-size: 21px; letter-spacing: -.035em; }
+.album-atlas header p { max-width: 55ch; margin-top: 3px; color: var(--muted); font-size: 10px; }
+.album-atlas header > strong { color: var(--mint); font-size: 11px; white-space: nowrap; }
+.album-atlas-legend { display: flex; flex-wrap: wrap; gap: 13px; padding: 0 18px 13px; color: var(--muted); font-size: 9px; font-weight: 750; }
+.album-atlas-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.album-atlas-legend span::before { content: ""; width: 9px; height: 9px; border: 2px solid #fff; border-radius: 50%; background: var(--pin-color); }
+.album-atlas-legend .is-departure { --pin-color: #ff714a; }
+.album-atlas-legend .is-arrival { --pin-color: #55cdb7; }
+.album-atlas-legend .is-both { --pin-color: #f2c66d; }
+.album-atlas-map { position: relative; height: min(46vh, 430px); min-height: 330px; border-top: 1px solid #3d6070; background: #d6e3e5; }
+.album-atlas-map .leaflet-container { width: 100%; height: 100%; background: #d6e3e5; }
+.album-atlas-map .leaflet-tile-pane { filter: saturate(.56) contrast(.93) brightness(1.04); }
+.album-atlas-map .leaflet-bar { border: 1px solid #b9c9cc; overflow: hidden; border-radius: 10px; box-shadow: 0 5px 14px #0e293339; }
+.album-atlas-map .leaflet-control-zoom a { color: var(--ink); }
+.album-atlas-map .leaflet-tooltip { display: grid; gap: 2px; min-width: 150px; border: 0; border-radius: 10px; padding: 9px 10px; background: #092d3a; color: #fff; box-shadow: 0 8px 20px #06192342; font-family: inherit; }
+.album-atlas-map .leaflet-tooltip::before { border-top-color: #092d3a; }
+.album-atlas-map .leaflet-tooltip strong { color: var(--mint); font-size: 14px; }
+.album-atlas-map .leaflet-tooltip span { font-size: 10px; font-weight: 750; }
+.album-atlas-map .leaflet-tooltip small { color: var(--muted); font-size: 8px; }
+.album-atlas-empty { display: grid; min-height: 180px; place-items: center; border-top: 1px solid #3d6070; padding: 24px; color: var(--muted); font-size: 11px; text-align: center; }
 .album-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 16px 9px; }
 .album-toolbar > div { display: flex; flex-wrap: wrap; gap: 4px; }
 .album-toolbar button { min-height: 37px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 8px; background: #102f3d; color: var(--muted); font-size: 11px; font-weight: 800; }
@@ -572,6 +594,10 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .album-progress-copy { text-align: left; }
   .album-categories button { min-height: 54px; padding-inline: 9px; text-align: center; }
   .album-categories button > span { display: none; }
+  .album-atlas { margin-inline: 10px; }
+  .album-atlas > header { align-items: start; flex-direction: column; gap: 6px; }
+  .album-atlas header > strong { white-space: normal; }
+  .album-atlas-map { height: 310px; min-height: 0; }
   .album-grid { grid-template-columns: minmax(0, 380px); justify-content: center; gap: 16px; padding-inline: 10px; }
   .album-results { padding-inline: 11px; }
   .record-flight > header { flex-direction: column; gap: 10px; padding: 17px; }

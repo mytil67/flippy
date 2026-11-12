@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleMarker, MapContainer, TileLayer } from 'react-leaflet';
+import { CircleMarker, MapContainer, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { latLngBounds } from 'leaflet';
+import { albumAirports } from './albumAirports.js';
 
 const pageSize = 24;
 const number = new Intl.NumberFormat('fr-FR');
@@ -104,6 +106,49 @@ function AirportMap({ item, direction }) {
   </div>;
 }
 
+function AirportAtlasFit({ airports }) {
+  const map = useMap();
+  useEffect(() => {
+    const fit = () => {
+      map.invalidateSize();
+      if (airports.length === 1) map.setView([airports[0].lat, airports[0].lon], 6, { animate: false });
+      else if (airports.length > 1) map.fitBounds(latLngBounds(airports.map(item => [item.lat, item.lon])),
+        { padding: [38, 38], maxZoom: 6, animate: false });
+    };
+    const frame = requestAnimationFrame(fit);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
+    observer?.observe(map.getContainer());
+    return () => { cancelAnimationFrame(frame); observer?.disconnect(); };
+  }, [map, airports]);
+  return null;
+}
+
+function AirportAtlas({ departures, arrivals }) {
+  const airports = useMemo(() => albumAirports(departures, arrivals), [departures, arrivals]);
+  const markerTone = airport => airport.departures && airport.arrivals ? '#f2c66d' : airport.departures ? '#ff714a' : '#55cdb7';
+  return <section className="album-atlas" aria-labelledby="album-atlas-title">
+    <header><div><h3 id="album-atlas-title">Mon réseau aérien</h3>
+      <p>Tous les aéroports rencontrés, réunis sur une seule carte.</p></div>
+      <strong>{airports.length} aéroport{airports.length === 1 ? '' : 's'} épinglé{airports.length === 1 ? '' : 's'}</strong></header>
+    <div className="album-atlas-legend" aria-label="Légende de la carte">
+      <span className="is-departure">Départ</span><span className="is-arrival">Arrivée</span><span className="is-both">Les deux</span>
+    </div>
+    {airports.length ? <div className="album-atlas-map">
+      <MapContainer center={[30, 0]} zoom={2} minZoom={2} maxZoom={12} scrollWheelZoom={false} attributionControl>
+        <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
+        <AirportAtlasFit airports={airports} />
+        {airports.map(airport => <CircleMarker key={airport.code} center={[airport.lat, airport.lon]}
+          radius={Math.min(14, 7 + Math.sqrt(airport.departures + airport.arrivals))}
+          pathOptions={{ color: '#fff', weight: 2, fillColor: markerTone(airport), fillOpacity: .96 }}>
+          <Tooltip direction="top" offset={[0, -7]}><strong>{airport.code}</strong><span>{airport.name}</span>
+            <small>{airport.departures} départ{airport.departures === 1 ? '' : 's'} · {airport.arrivals} arrivée{airport.arrivals === 1 ? '' : 's'}</small></Tooltip>
+        </CircleMarker>)}
+      </MapContainer>
+    </div> : <div className="album-atlas-empty"><p>Capture un trajet identifié pour placer ton premier aéroport.</p></div>}
+  </section>;
+}
+
 function AlbumCard({ item, kind, owned }) {
   const airport = kind !== 'models';
   const [accent, tint] = cardPalettes[hash(item.code) % cardPalettes.length];
@@ -188,6 +233,7 @@ export default function CollectionAlbum({ data }) {
       {categories.map(([key, short, full]) => <button key={key} type="button" aria-pressed={kind === key}
         onClick={() => { setKind(key); setFilter('all'); setQuery(''); }}>{short}<span>{full}</span></button>)}
     </nav>
+    {kind !== 'models' && <AirportAtlas departures={data.departures} arrivals={data.arrivals} />}
     <div className="album-toolbar">
       <div role="group" aria-label="Filtrer les fiches">
         {[['all', 'Toutes'], ['owned', 'Découvertes'], ['missing', 'À découvrir']].map(([key, text]) =>
