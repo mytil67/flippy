@@ -4,9 +4,31 @@ import { collectionAccess, collectionIdentity, setCollector } from '../lib/colle
 import { accountUser } from '../lib/account.js';
 import { distanceKm } from '../lib/flight.js';
 import { flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], recent: [] };
+let migrations;
+
+function collectionMigrations(sql) {
+  migrations ??= (async () => {
+    await sql`CREATE TABLE IF NOT EXISTS flippy_migrations (
+      name text PRIMARY KEY,
+      applied_at timestamptz NOT NULL DEFAULT now()
+    )`;
+    await sql`WITH migration AS (
+      INSERT INTO flippy_migrations (name) VALUES ('005_clear_unverified_routes')
+      ON CONFLICT DO NOTHING RETURNING 1
+    )
+    UPDATE flippy_captures
+    SET flight_number = NULL, route_km = NULL, departure_code = NULL, arrival_code = NULL
+    WHERE EXISTS (SELECT 1 FROM migration)
+      AND (flight_number IS NOT NULL OR route_km IS NOT NULL OR departure_code IS NOT NULL OR arrival_code IS NOT NULL)`;
+  })().catch(error => {
+    migrations = undefined;
+    throw error;
+  });
+  return migrations;
+}
 
 async function collection(sql, owner) {
   const [row] = await sql`
@@ -76,6 +98,7 @@ export default async function handler(request, response) {
 
   try {
     const sql = neon(connection);
+    await collectionMigrations(sql);
     const [identity, account] = await Promise.all([collectionIdentity(sql, token), accountUser(request)]);
     const owner = account ? 'account:' + account.id : identity?.id;
     if (action === 'claim') {
@@ -124,14 +147,14 @@ export default async function handler(request, response) {
     ]);
     const modelCode = details?.airframe?.type || plane.type || null;
     const airline = details?.airline || plane.airline;
-    const route = reconcileRoute(details, trace?.departure);
+    const route = validateRouteDirection(reconcileRoute(details, trace?.departure), plane, trace?.segments);
     const routeKm = routeDistance(route);
     const departureCode = routeKm === null ? null : route.from.code ?? null;
     const arrivalCode = routeKm === null ? null : route.to.code ?? null;
     const captured = duplicate ? [] : await sql`INSERT INTO flippy_captures
       (collector_id, aircraft, callsign, flight_day, flight_number, registration, model_code, model, airline_code, airline_iata, airline,
         observed_km, route_km, departure_code, arrival_code)
-      VALUES (${owner}, ${hex}, ${callsign}, ${day}, ${details?.number ?? null}, ${plane.registration || details?.airframe?.registration || null},
+      VALUES (${owner}, ${hex}, ${callsign}, ${day}, ${route?.unverified || route?.routeConflict ? null : route?.number ?? null}, ${plane.registration || details?.airframe?.registration || null},
         ${modelCode}, ${details?.airframe?.model || plane.model || null}, ${airline?.icao || airline?.iata || null}, ${airline?.iata || null}, ${airline?.name || null},
         ${observedDistance(trace?.segments ?? [])}, ${routeKm}, ${departureCode}, ${arrivalCode}) ON CONFLICT DO NOTHING RETURNING 1`;
     if (!captured.length && routeKm !== null) await sql`UPDATE flippy_captures SET route_km = ${routeKm},

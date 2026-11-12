@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractFlightTrace, extractOpenSkyTrace, flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 
 test('la distance du trajet couvre les deux aéroports et reste inconnue en cas de conflit', () => {
   const route = { from: { lat: 49.01, lon: 2.55 }, to: { lat: 43.66, lon: 7.22 } };
   assert.equal(routeDistance(route), 694);
-  assert.equal(routeDistance({ ...route, unverified: true }), 694);
+  assert.equal(routeDistance({ ...route, unverified: true }), null);
   assert.equal(routeDistance({ ...route, routeConflict: true }), null);
   assert.equal(routeDistance({ ...route, to: { lat: 92, lon: 7.22 } }), null);
   assert.equal(routeDistance({ from: route.from }), null);
@@ -137,6 +137,27 @@ test('sans observation au sol, les aéroports annoncés restent dans le billet',
   assert.equal(geometry.from, null);
   assert.equal(geometry.to, null);
   assert.deepEqual(geometry.guides, []);
+});
+
+test('un trajet annoncé vers l’ouest est écarté quand le vol file clairement vers l’est', () => {
+  const announced = reconcileRoute({
+    number: 'AF328V',
+    from: { code: 'CDG', name: 'Paris', lat: 49.01, lon: 2.55 },
+    to: { code: 'PTP', name: 'Pointe-à-Pitre', lat: 16.27, lon: -61.53 }
+  });
+  const plane = { lat: 48.61, lon: 7.75, heading: 88, speed: 430 };
+  const route = validateRouteDirection(announced, plane);
+  assert.equal(route.directionConflict, true);
+  assert.equal(route.reportedDestination, 'Pointe-à-Pitre');
+  assert.equal(route.to, undefined);
+  assert.equal(route.number, undefined);
+  assert.equal(routeDistance(route), null);
+});
+
+test('une route cohérente et un virage temporaire près du départ ne sont pas rejetés', () => {
+  const route = { from: { code: 'CDG', lat: 49.01, lon: 2.55 }, to: { code: 'YOW', lat: 45.32, lon: -75.67 } };
+  assert.equal(validateRouteDirection(route, { lat: 49, lon: 2, heading: 90, speed: 220 }), route);
+  assert.equal(validateRouteDirection(route, { lat: 48.6, lon: 7.75, heading: 260, speed: 430 }), route);
 });
 
 test('le suivi refuse une nouvelle rotation ou un saut incompatible après la sortie du radar', () => {

@@ -5,7 +5,7 @@ import { collectionRequest } from './Collection.jsx';
 import { playbackFrames, useReplay } from './replay.js';
 import { buildTraceGeometry } from './traceGeometry.js';
 import { flightDurationLabel } from './flightDuration.js';
-import { reconcileRoute, routeDistance } from '../lib/routeEvidence.js';
+import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 import { orderTraffic } from './trafficSort.js';
 
@@ -141,7 +141,9 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
       </div>
       {plane && (!route?.from || !destination) && <p className="route-note" role="status">{
         loading ? 'Vérification du trajet…' : route?.routeConflict
-          ? 'Le départ annoncé (' + route.reportedOrigin + ') ne correspond pas ' +
+          ? route.directionConflict
+            ? 'La destination annoncée (' + route.reportedDestination + ') est opposée au déplacement observé. Trajet écarté.'
+            : 'Le départ annoncé (' + route.reportedOrigin + ') ne correspond pas ' +
             (route.probableDeparture ? 'au début de la montée.' : 'à la position au sol.') + ' Arrivée non confirmée.'
           : route?.observedDeparture || route?.probableDeparture ? 'Arrivée non confirmée.' :
           route?.routeUnavailable ? 'Service de trajets indisponible.' : 'Trajet inconnu pour cet indicatif.'
@@ -225,7 +227,8 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
     </dl>}
     {orderedMatches.length ? <ul className="traffic-list">
       {orderedMatches.slice(start, end).map(plane => {
-        const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
+        const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] :
+          plane.route ?? validateRouteDirection(searchDetails[plane.callsign], plane);
         const airline = details?.airline ?? plane.airline;
         const routeLabel = details?.from?.code && details?.to?.code ? `${details.from.code} → ${details.to.code}` : null;
         return <li key={plane.id}><button type="button" onClick={() => onSelect(plane)} aria-current={plane.id === selected?.id ? 'true' : undefined}>
@@ -282,15 +285,20 @@ export default function App() {
     : '';
   const traceResult = trace?.params === traceParams ? trace.data : null;
   const traceLoading = Boolean(traceParams && !traceResult);
-  const route = useMemo(() => mode === 'demo' ? selected?.route :
-    reconcileRoute(reportedRoute, traceResult?.departure, traceLoading),
-  [mode, selected, reportedRoute, traceResult, traceLoading]);
   const radarSamples = radarHistory.get(selected?.id);
   const firstClickSample = focus?.extraSample;
   const localTrace = useMemo(() => mode === 'live' && selected && !traceResult?.segments?.length ?
     radarTrace(radarSamples, selected, firstClickSample) : null,
   [mode, selected, traceResult, radarSamples, firstClickSample]);
   const segments = mode === 'demo' ? selected?.track : traceResult?.segments?.length ? traceResult.segments : localTrace?.segments;
+  const route = useMemo(() => {
+    if (mode === 'demo') return selected?.route;
+    return validateRouteDirection(
+      reconcileRoute(reportedRoute, traceResult?.departure, traceLoading),
+      selected,
+      segments
+    );
+  }, [mode, selected, reportedRoute, traceResult, traceLoading, segments]);
   const geometry = useMemo(() => buildTraceGeometry(focus, route, segments), [focus, route, segments]);
   const routeLoading = Boolean(params && detail?.params !== params);
   const timestamps = localTrace?.timestamps ?? traceResult?.timestamps;
@@ -425,7 +433,8 @@ export default function App() {
   }, [callsigns, term]);
 
   const matches = planes.filter(plane => {
-    const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] : plane.route ?? searchDetails[plane.callsign];
+    const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] :
+      plane.route ?? validateRouteDirection(searchDetails[plane.callsign], plane);
     const airline = details?.airline ?? plane.airline;
     return !term || searchText([plane.callsign, plane.registration, plane.id, plane.type, airline?.name, airline?.iata, details?.number].join(' ')).includes(term);
   });
