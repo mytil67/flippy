@@ -7,7 +7,7 @@ import { flightTrace } from '../lib/trace.js';
 import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
 import { airportByCode } from '../lib/airportLookup.js';
 
-const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], recent: [] };
+const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], recent: [] };
 let evidenceSchema;
 
 function ensureEvidenceSchema(sql) {
@@ -43,6 +43,14 @@ async function collection(sql, owner) {
       SELECT airline_code AS code, COALESCE(max(airline), airline_code) AS name, max(airline_iata) AS iata,
         count(*)::int AS count, sum(observed_km) AS kilometers, sum(route_km) AS route_km
       FROM own WHERE airline_code IS NOT NULL GROUP BY airline_code
+    ),
+    departures AS (
+      SELECT departure_code AS code, count(*)::int AS count, max(captured_at) AS last_seen
+      FROM own WHERE departure_code IS NOT NULL GROUP BY departure_code
+    ),
+    arrivals AS (
+      SELECT arrival_code AS code, count(*)::int AS count, max(captured_at) AS last_seen
+      FROM own WHERE arrival_code IS NOT NULL GROUP BY arrival_code
     ),
     record_capture AS (
       SELECT * FROM own WHERE route_km IS NOT NULL
@@ -80,6 +88,8 @@ async function collection(sql, owner) {
       COALESCE((SELECT json_agg(planes ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM planes), '[]') AS planes,
       COALESCE((SELECT json_agg(models ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM models), '[]') AS models,
       COALESCE((SELECT json_agg(airlines ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM airlines), '[]') AS airlines,
+      COALESCE((SELECT json_agg(departures ORDER BY count DESC, code) FROM departures), '[]') AS departures,
+      COALESCE((SELECT json_agg(arrivals ORDER BY count DESC, code) FROM arrivals), '[]') AS arrivals,
       COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent
     FROM own`;
   const record = row.record ? {
@@ -87,7 +97,12 @@ async function collection(sql, owner) {
     from: airportByCode(row.record.departure_code),
     to: airportByCode(row.record.arrival_code)
   } : null;
-  return { ...row, record, kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
+  const airportEntries = entries => entries.map(item => {
+    const airport = airportByCode(item.code);
+    return { ...item, name: airport?.name ?? item.code, lat: airport?.lat, lon: airport?.lon };
+  });
+  return { ...row, record, departures: airportEntries(row.departures), arrivals: airportEntries(row.arrivals),
+    kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
 function observedDistance(segments) {

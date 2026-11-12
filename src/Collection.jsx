@@ -3,10 +3,11 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from
 import { latLngBounds } from 'leaflet';
 import { knownAirline } from '../lib/flight.js';
 import { collectionInsights, routeEvidenceGroup, routeReliability } from './collectionInsights.js';
+import CollectionAlbum from './CollectionAlbum.jsx';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
-const tabs = [['recent', 'Captures'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies']];
+const tabs = [['recent', 'Captures'], ['album', 'Album'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies']];
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const names = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
@@ -356,7 +357,7 @@ export default function Collection() {
     return () => controller.abort();
   }, [attempt]);
 
-  const items = data?.[tab] ?? [];
+  const items = tab === 'album' ? [] : data?.[tab] ?? [];
   const term = searchText(query.trim());
   const reliableItems = tab === 'recent' && routeFilter !== 'all'
     ? items.filter(item => routeEvidenceGroup(item.route_status) === routeFilter) : items;
@@ -409,11 +410,12 @@ export default function Collection() {
           <CollectionInsights data={data} />
           <nav className="collection-tabs" aria-label="Vues de la collection">
             {tabs.map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { if (key !== tab) changeTab(key); }}>
-              {label}{key !== 'recent' && <span> {data[key].length}</span>}
+              {label}{!['recent', 'album'].includes(key) && <span> {data[key].length}</span>}
             </button>)}
           </nav>
+          {tab === 'album' && <CollectionAlbum data={data} />}
           {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
-          {items.length > 0 && <div className="collection-filters">
+          {tab !== 'album' && items.length > 0 && <div className="collection-filters">
             <input type="search" aria-label="Rechercher dans cette vue" placeholder="Rechercher dans cette vue" value={query} onChange={event => setQuery(event.target.value)} />
             <select aria-label="Trier les résultats" value={sort} onChange={event => setSort(event.target.value)}>
               <option value="default">{tab === 'recent' ? 'Plus récentes' : 'Kilomètres des trajets cumulés'}</option>
@@ -421,8 +423,8 @@ export default function Collection() {
               <option value="name">Ordre alphabétique</option>
             </select>
           </div>}
-          {(term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
-          {visible.length ? <ul className="collection-list" aria-label={tabs.find(([key]) => key === tab)[1]}>
+          {tab !== 'album' && (term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
+          {tab === 'album' ? null : visible.length ? <ul className="collection-list" aria-label={tabs.find(([key]) => key === tab)[1]}>
             {visible.map(item => <CollectionCard key={item.code ?? `${item.aircraft}:${item.callsign}:${item.captured_at}`}
               item={item} tab={tab} onOpen={setDetail} />)}
           </ul> : <div className="collection-empty">
