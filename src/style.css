@@ -346,13 +346,24 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .album-card-art::before { content: ""; position: absolute; width: 205px; height: 205px; border: 1px solid #102d3730; border-radius: 50%; box-shadow: 0 0 0 21px #ffffff24, 0 0 0 22px #102d3717; }
 .album-card-art svg { position: relative; z-index: 1; width: 94%; max-height: 148px; filter: drop-shadow(0 7px 0 #062b3130); }
 .album-card-code { position: absolute; right: -7px; bottom: -18px; color: #ffffff45; font-size: 74px; font-weight: 900; letter-spacing: -.09em; line-height: 1; }
-.album-plane-silhouette, .album-airport-silhouette { fill: #103942; }
-.album-silhouette-line, .album-runway-mark, .album-runway-edge, .album-propellers, .album-map-line, .album-airport-arrow { fill: none; stroke: #eff8f6; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.album-aircraft-visual { position: absolute; inset: 0; z-index: 1; display: grid; place-items: center; margin: 0; overflow: hidden; }
+.album-aircraft-visual img { width: 100%; height: 100%; object-fit: cover; }
+.album-aircraft-visual::after { content: ""; position: absolute; inset: auto 0 0; height: 45%; background: linear-gradient(transparent, #061c27b8); pointer-events: none; }
+.album-aircraft-visual figcaption { position: absolute; z-index: 2; right: 9px; bottom: 7px; left: 9px; overflow: hidden; color: #fff; font-size: 7px; line-height: 1.25; text-align: right; text-overflow: ellipsis; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+.album-aircraft-visual figcaption a { color: inherit; text-decoration-color: #ffffff75; text-underline-offset: 2px; }
+.album-plane-silhouette { fill: #103942; }
+.album-silhouette-line, .album-propellers { fill: none; stroke: #eff8f6; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
 .album-propellers { stroke: var(--card-accent); stroke-width: 4; }
-.album-map-line { stroke: #0a37432b; stroke-width: 2; }
-.album-airport-arrow { stroke: var(--card-accent); stroke-width: 5; }
-.album-airport-arrow.is-arrivals { transform: rotate(180deg); transform-origin: 155px 22px; }
-.album-airport-silhouette text { fill: #103942; font-size: 12px; font-weight: 900; letter-spacing: .18em; }
+.album-card-art .album-airport-silhouette { width: 100%; max-height: 174px; filter: none; }
+.album-world-grid { fill: none; stroke: #0f53602b; stroke-width: 1; }
+.album-world-land { fill: #174b55; stroke: #0f343c; stroke-width: 1; }
+.album-map-direction circle { fill: #f5f0e4d9; stroke: var(--card-accent); stroke-width: 2; }
+.album-map-direction path { fill: none; stroke: var(--card-accent); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.album-map-direction.is-arrivals { transform: rotate(180deg); transform-origin: 273px 22px; }
+.album-airport-marker .album-marker-halo { fill: var(--card-accent); opacity: .23; }
+.album-airport-marker path { fill: var(--card-accent); stroke: #fff; stroke-width: 1.5; }
+.album-airport-marker circle:last-child { fill: #fff; }
+.album-airport-silhouette text { fill: #153c44; font-size: 8px; font-weight: 850; letter-spacing: .04em; }
 .album-card-art i { position: absolute; z-index: 3; display: grid; place-items: center; width: 57px; height: 57px; border: 1px solid #ffffff75; border-radius: 50%; background: #0c2833df; color: #fff; box-shadow: 0 0 0 7px #0c283333; font-style: normal; }
 .album-card-art i span { font-size: 25px; font-weight: 850; }
 .album-card-copy { position: relative; min-height: 99px; padding: 13px 14px 12px 61px; background: #f4f0e5; }
@@ -370,8 +381,11 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .album-card.is-locked header { background: #233f49; color: #b9c7c8; }
 .album-card.is-locked .album-card-art { background: #1b3742; }
 .album-card.is-locked .album-card-art::before { border-color: #adc2c820; box-shadow: 0 0 0 21px #adc2c808, 0 0 0 22px #adc2c812; }
-.album-card.is-locked .album-plane-silhouette, .album-card.is-locked .album-airport-silhouette { fill: #73868b; opacity: .45; }
+.album-card.is-locked .album-plane-silhouette { fill: #73868b; opacity: .45; }
 .album-card.is-locked .album-card-art svg { filter: blur(1.3px); }
+.album-card.is-locked .album-aircraft-visual img { filter: grayscale(1) brightness(.48) blur(1.3px); transform: scale(1.03); }
+.album-card.is-locked .album-aircraft-visual figcaption { opacity: .5; }
+.album-card.is-locked .album-airport-silhouette { opacity: .45; }
 .album-card.is-locked .album-card-copy { background: #17333e; }
 .album-card.is-locked .album-card-copy h3 { color: #d2dddc; }
 .album-card.is-locked .album-card-copy p { color: #879b9f; }

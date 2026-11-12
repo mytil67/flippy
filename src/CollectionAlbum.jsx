@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const pageSize = 24;
 const number = new Intl.NumberFormat('fr-FR');
@@ -44,14 +44,55 @@ function ModelSilhouette({ item }) {
   </svg>;
 }
 
-function AirportSilhouette({ item, direction }) {
+function AircraftPhoto({ item }) {
+  const target = useRef(null);
+  const [photo, setPhoto] = useState();
+  useEffect(() => {
+    const controller = new AbortController();
+    const node = target.current;
+    const load = async () => {
+      const params = new URLSearchParams({ code: item.code, name: item.name || item.code });
+      if (item.manufacturer) params.set('manufacturer', item.manufacturer);
+      try {
+        const response = await fetch('/api/aircraft-photo?' + params, { signal: controller.signal });
+        const result = await response.json();
+        if (response.ok) setPhoto(result.photo || null);
+      } catch (error) {
+        if (!controller.signal.aborted) setPhoto(null);
+      }
+    };
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) { observer.disconnect(); load(); }
+    }, { rootMargin: '320px' });
+    if (node) observer.observe(node);
+    return () => { observer.disconnect(); controller.abort(); };
+  }, [item.code, item.name, item.manufacturer]);
+  return <figure ref={target} className="album-aircraft-visual">
+    {photo ? <><img src={photo.url} alt={`${item.name || item.code}, photo d’appareil`} loading="lazy"
+      onError={() => setPhoto(null)} /><figcaption><a href={photo.page} target="_blank" rel="noreferrer">
+        © {photo.author} · {photo.license}</a></figcaption></> : <ModelSilhouette item={item} />}
+  </figure>;
+}
+
+function AirportMap({ item, direction }) {
+  const located = Number.isFinite(item.lat) && Number.isFinite(item.lon);
+  const markerX = located ? (item.lon + 180) / 360 * 300 : 150;
+  const markerY = located ? (90 - item.lat) / 180 * 150 : 75;
   return <svg viewBox="0 0 300 150" aria-hidden="true" className="album-airport-silhouette">
-    <path className="album-map-line" d="M-8 31c46 15 62-16 102-5s47 35 86 27 57-35 128-16M-5 122c51-25 72 9 113-6s57-40 96-27 61 42 105 29" />
-    <path d="M49 53h202v54H49z" />
-    <path className="album-runway-mark" d="M67 80h30m14 0h30m14 0h30m14 0h30" />
-    <path className="album-runway-edge" d="M49 46v-12m202 12v-12M49 126v-12m202 12v-12" />
-    <path className={'album-airport-arrow is-' + direction} d="m145 20 10-12 10 12m-10-11v27" />
-    <text x="150" y="145" textAnchor="middle">{item.code}</text>
+    <g className="album-world-grid"><path d="M0 37.5h300M0 75h300M0 112.5h300M75 0v150M150 0v150M225 0v150" /></g>
+    <g className="album-world-land">
+      <path d="M18 29 37 17l35 2 18 13 16 6-9 14-18 3-12 17-17 3-9-15-17-9Z" />
+      <path d="m82 79 17 9 9 18-7 28-13 12-7-26-10-23Z" />
+      <path d="m127 32 17-10 18 5 11-8 34 2 23 14 38 4 20 17-13 15-24-4-13 12-29-6-21 4-16-10-18 4-15-14-21-6Z" />
+      <path d="m146 70 28 3 17 15-8 33-16 20-16-14-9-28Z" />
+      <path d="m241 105 25-7 19 14-7 19-29 3-15-13Z" />
+      <path d="m106 14 13-10 10 6-8 13Z" />
+    </g>
+    <g className={'album-map-direction is-' + direction}><circle cx="273" cy="22" r="14" /><path d="m267 22 6-7 6 7m-6-7v14" /></g>
+    {located && <g className="album-airport-marker" transform={`translate(${markerX} ${markerY})`}>
+      <circle className="album-marker-halo" r="13" /><path d="M0 8c6-7 9-12 9-17a9 9 0 1 0-18 0c0 5 3 10 9 17Z" /><circle r="3" />
+    </g>}
+    <text x="16" y="137">{located ? `${item.lat.toFixed(2)}°, ${item.lon.toFixed(2)}°` : 'Position inconnue'}</text>
   </svg>;
 }
 
@@ -66,7 +107,7 @@ function AlbumCard({ item, kind, owned }) {
       <header><span>{family}</span><strong>{owned ? 'Dans ton hangar' : 'Fiche à débloquer'}</strong></header>
       <div className="album-card-art">
         <span className="album-card-code" aria-hidden="true">{item.code}</span>
-        {airport ? <AirportSilhouette item={item} direction={kind} /> : <ModelSilhouette item={item} />}
+        {airport ? <AirportMap item={item} direction={kind} /> : <AircraftPhoto item={item} />}
         {!owned && <i aria-hidden="true"><span>?</span></i>}
       </div>
       <div className="album-card-copy">
@@ -158,6 +199,6 @@ export default function CollectionAlbum({ data }) {
       <span>Page {page} sur {pages}</span>
       <button type="button" disabled={page >= pages} onClick={() => setPage(value => value + 1)}>Suivante</button>
     </nav>}
-    <p className="album-source">Modèles : ICAO Doc 8643 · Aéroports : OurAirports, domaine public.</p>
+    <p className="album-source">Modèles : ICAO Doc 8643 · Photos : Wikimedia Commons, créditées sur chaque fiche · Aéroports : OurAirports, domaine public.</p>
   </section>;
 }
