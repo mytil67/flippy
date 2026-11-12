@@ -48,7 +48,7 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
       const middle = map.project(area.getSouthWest(), zoom).add(map.project(area.getNorthEast(), zoom)).divideBy(2);
       const target = map.unproject(middle.add(bottomRight.subtract(topLeft).divideBy(2)), zoom);
       map.stop();
-      if (reducedMotion()) map.setView(target, zoom, { animate: false });
+      if (reducedMotion() || Math.abs(map.getZoom() - zoom) > 1) map.setView(target, zoom, { animate: false });
       else map.flyTo(target, zoom, { duration: 0.68 });
     }
     const observer = new ResizeObserver(() => {
@@ -181,7 +181,7 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
       scrollWheelZoom worldCopyJump className="map">
       <MapActions recenter={recenter} bounds={geometry?.bounds} panel={panel} following={following}
         tracked={tracked} fitRevision={fitRevision} fitReady={fitReady} localFocus={localTrace ? focus : null} />
-      <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenZooming={false}
+      <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenIdle={false} updateInterval={100} keepBuffer={4}
         attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
       <ZoomControl position="topleft" />
       <ScaleControl position="bottomleft" imperial={false} />

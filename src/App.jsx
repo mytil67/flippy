@@ -270,6 +270,7 @@ export default function App() {
   const [searchDetails, setSearchDetails] = useState({});
   const [searching, setSearching] = useState(false);
   const [fullscreenError, setFullscreenError] = useState('');
+  const [panelExpanded, setPanelExpanded] = useState(() => window.innerWidth >= 1100);
   const display = useRef(null);
   const panel = useRef(null);
   const trafficToggle = useRef(null);
@@ -557,7 +558,8 @@ export default function App() {
     </div>
     <a className="collection-launch" href="/collection"><Icon name="collection" /> Collection</a>
     {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
-    {focus && <aside className={'flight-column' + (showTraffic ? ' behind-traffic' : '')} ref={panel} aria-label="Informations sur les vols">
+    {focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
+      ref={panel} aria-label="Informations sur les vols">
       <div className="flight-panel">
         <div className="panel-header">
           <button type="button" onClick={returnToRadar}><Icon name="back" /> Radar</button>
@@ -565,6 +567,8 @@ export default function App() {
             setFollowing(false);
             setFitRevision(value => value + 1);
           }}><Icon name="frame" /> Cadrer</button>}
+          <button type="button" className="panel-toggle" aria-expanded={panelExpanded}
+            onClick={() => setPanelExpanded(value => !value)}>{panelExpanded ? 'Réduire' : 'Détails'}</button>
           <span>Position au clic {selected.observedAt ? '· ' + preciseClock.format(selected.observedAt) : ''}</span>
         </div>
         <FlightTicket plane={selected} route={route} loading={routeLoading || traceLoading} mode={mode} failed={mode === 'live' && failed} />

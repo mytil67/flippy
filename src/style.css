@@ -104,6 +104,16 @@ button:active:not(:disabled) { transform: translateY(1px); }
   display: grid; gap: 8px; overflow: auto; scrollbar-width: thin; border-radius: 24px; box-shadow: var(--shadow);
   animation: panel-enter 220ms var(--ease) both;
 }
+.flight-column.is-compact { width: min(320px, calc(100% - 28px)); }
+.flight-column.is-compact .ticket-stub,
+.flight-column.is-compact .capture-row,
+.flight-column.is-compact .trace-legend,
+.flight-column.is-compact .trace-coverage,
+.flight-column.is-compact .retry-trace,
+.flight-column.is-compact .flight-tools { display: none; }
+.flight-column.is-compact .ticket-body { padding-bottom: 13px; }
+.flight-column.is-compact .route { margin-block: 10px; padding-block: 10px; }
+.flight-column.is-compact .route-note { margin-bottom: 8px; }
 @keyframes panel-enter { from { transform: translateX(9px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .flight-panel { border: 1px solid #315160; border-radius: 24px; background: #0b2835; padding: 11px; }
 .panel-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 1px 8px; }
@@ -456,7 +466,8 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .collection-launch { top: 141px; left: 10px; }
   .map-error { top: 67px; right: 8px; }
   .map-hint { left: 8px; }
-  .flight-column { top: auto; right: 8px; bottom: 8px; width: min(410px, calc(100% - 16px)); max-height: 56%; border-radius: 24px 24px 10px 10px; }
+  .flight-column { top: auto; right: 8px; bottom: 8px; width: min(410px, calc(100% - 16px)); max-height: 48%; border-radius: 24px 24px 10px 10px; }
+  .flight-column.is-compact { width: min(360px, calc(100% - 16px)); max-height: 43%; }
   .traffic { top: auto; right: 8px; bottom: 8px; width: min(410px, calc(100% - 16px)); max-height: 62%; overflow: auto; border-radius: 24px 24px 10px 10px; }
   .flight-panel { display: flex; flex-direction: column; }
   .flight-tools { order: 1; margin: 0 0 7px; }
