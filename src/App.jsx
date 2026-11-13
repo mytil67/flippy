@@ -6,7 +6,7 @@ import { captureFlightKey, captureLabels, captureStatus } from './captureStatus.
 import { playbackFrames, useReplay } from './replay.js';
 import { buildTraceGeometry } from './traceGeometry.js';
 import { flightDurationLabel } from './flightDuration.js';
-import { reconcileRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
+import { resolveFlightRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 import { orderTraffic } from './trafficSort.js';
 
@@ -132,7 +132,7 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
       </div>
       <div className="route">
         {[[route?.observedDeparture ? 'Départ observé' : route?.probableDeparture ? 'Départ probable' : 'Départ annoncé', route?.from],
-          [destination ? 'Arrivée annoncée' : 'Arrivée', destination]].map(([label, airport], index) => (
+          [destination ? route?.historicalRoute ? 'Arrivée probable' : 'Arrivée annoncée' : 'Arrivée', destination]].map(([label, airport], index) => (
           <div className="airport" key={label}>
             <p className="label">{label}</p><strong>{airport?.code || '—'}</strong>
             {airport?.name && <span>{airport.name}</span>}
@@ -149,7 +149,8 @@ function FlightTicket({ plane, route, loading, mode, failed }) {
           : route?.observedDeparture || route?.probableDeparture ? 'Arrivée non confirmée.' :
           route?.routeUnavailable ? 'Service de trajets indisponible.' : 'Trajet inconnu pour cet indicatif.'
       }</p>}
-      {route?.unverified && <p className="route-note">Itinéraire annoncé. Départ non vérifié par ADS-B.</p>}
+      {route?.historicalRoute ? <p className="route-note">Arrivée déduite de l’historique du vol (FlyItalyADSB).</p> :
+        route?.unverified && <p className="route-note">Itinéraire annoncé. Départ non vérifié par ADS-B.</p>}
       {totalDistance !== null && <p className="ticket-distance"><span>Départ → arrivée</span><strong>{unit(totalDistance, 'km')}</strong><small>à vol d’oiseau</small></p>}
       <dl className="metrics">
         <div><dt>Altitude</dt><dd>{unit(plane?.altitude, 'pi')}</dd></div>
@@ -338,11 +339,7 @@ export default function App() {
   const segments = mode === 'demo' ? selected?.track : traceResult?.segments?.length ? traceResult.segments : localTrace?.segments;
   const route = useMemo(() => {
     if (mode === 'demo') return selected?.route;
-    return validateRouteDirection(
-      reconcileRoute(reportedRoute, traceResult?.departure, traceLoading),
-      selected,
-      segments
-    );
+    return resolveFlightRoute(reportedRoute, traceResult?.departure, selected, segments, traceLoading);
   }, [mode, selected, reportedRoute, traceResult, traceLoading, segments]);
   const geometry = useMemo(() => buildTraceGeometry(focus, route, segments), [focus, route, segments]);
   const routeLoading = Boolean(params && detail?.params !== params);

@@ -1,7 +1,42 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { extractFlightTrace, extractOpenSkyTrace, flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
+import { reconcileRoute, resolveFlightRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
+
+test('RYR4801 retrouve Ancône avec une seule liaison historique et un départ corroboré', () => {
+  const from = { code: 'CRL', lat: 50.46196, lon: 4.45956 };
+  const to = { code: 'AOI', lat: 43.6163, lon: 13.3623 };
+  const details = {
+    from: { code: 'CAG', lat: 39.2515, lon: 9.05428 },
+    to: { code: 'CIA', lat: 41.7994, lon: 12.5949 },
+    historicalRoutes: [{ from, to, day: '2026-11-09' }]
+  };
+  const departure = { airport: from, lat: 50.454479, lon: 4.434988, inferred: true };
+  const plane = { id: '4ca4f0', lat: 48.96234, lon: 8.45145, heading: 122.51, speed: 483.8, observedAt: 1794551551715 };
+  const route = resolveFlightRoute(details, departure, plane);
+  assert.equal(route.to.code, 'AOI');
+  assert.equal(routeStatus(route), 'probable');
+  assert.equal(resolveFlightRoute(details, departure, { ...plane, heading: 300 }).to, undefined);
+  const ambiguous = { ...details, historicalRoutes: [...details.historicalRoutes, { from, to: { ...to, code: 'PSR' }, day: '2026-11-10' }] };
+  assert.equal(resolveFlightRoute(ambiguous, departure, plane).to, undefined);
+});
+
+test('UAL108 retrouve Munich grâce à une liaison récurrente compatible avec sa trace', () => {
+  const plane = { id: 'a2a2e6', lat: 47.825, lon: 7.772, heading: 106.71, speed: 493.9, observedAt: Date.parse('2026-11-13T06:23Z') };
+  const from = { code: 'IAD', lat: 38.9445, lon: -77.4558 };
+  const to = { code: 'MUC', lat: 48.3538, lon: 11.7861 };
+  const details = {
+    number: 'UA108', from: { code: 'EWR', lat: 40.6925, lon: -74.1687 }, to: { code: 'EDI', lat: 55.95, lon: -3.372 },
+    historicalRoutes: [{ from, to, day: '2026-11-10' }, { from, to, day: '2026-11-11' }]
+  };
+  const route = resolveFlightRoute(details, undefined, plane);
+  assert.equal(route.to.code, 'MUC');
+  assert.equal(route.historicalRoute, true);
+  assert.equal(route.unverified, true);
+  assert.equal(routeDistance(route), null);
+  assert.equal(resolveFlightRoute({ ...details, historicalRoutes: details.historicalRoutes.slice(0, 1) }, undefined, plane).to, undefined);
+  assert.equal(resolveFlightRoute(details, { lat: 40.6925, lon: -74.1687, airport: details.from }, plane).to, undefined);
+});
 
 test('la distance du trajet couvre les deux aéroports et reste inconnue en cas de conflit', () => {
   const route = { from: { lat: 49.01, lon: 2.55 }, to: { lat: 43.66, lon: 7.22 } };

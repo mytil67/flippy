@@ -4,7 +4,7 @@ import { collectionAccess, collectionIdentity, setCollector } from '../lib/colle
 import { accountUser } from '../lib/account.js';
 import { distanceKm } from '../lib/flight.js';
 import { flightTrace } from '../lib/trace.js';
-import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
+import { resolveFlightRoute, routeDistance, routeStatus } from '../lib/routeEvidence.js';
 import { airportByCode } from '../lib/airportLookup.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], routes: [], recent: [] };
@@ -245,7 +245,7 @@ export default async function handler(request, response) {
     ]);
     const modelCode = details?.airframe?.type || plane.type || null;
     const airline = details?.airline || plane.airline;
-    const route = validateRouteDirection(reconcileRoute(details, trace?.departure), plane, trace?.segments);
+    const route = resolveFlightRoute(details, trace?.departure, plane, trace?.segments);
     const routeKm = routeDistance(route);
     const status = routeStatus(route);
     const departureCode = routeKm === null ? null : route.from.code ?? null;

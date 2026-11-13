@@ -212,7 +212,7 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         {replayLine && <Polyline positions={replayLine} interactive={false} className="observed-trace" pathOptions={replayStyle} />}
         <AirportPin position={geometry.from} airport={route?.from}
           title={route?.observedDeparture ? 'Départ observé' : route?.probableDeparture ? 'Départ probable' : 'Départ annoncé'} />
-        <AirportPin position={geometry.to} airport={route?.to} title="Arrivée annoncée" arrival />
+        <AirportPin position={geometry.to} airport={route?.to} title={route?.historicalRoute ? 'Arrivée probable' : 'Arrivée annoncée'} arrival />
         <CoveragePin position={geometry.startOfCoverage} label="Début de la trace" at={coverage?.start} />
         <CoveragePin position={geometry.endOfCoverage} label="Fin de la trace" at={coverage?.end} />
       </>}
