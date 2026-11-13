@@ -90,18 +90,19 @@ function AircraftPhoto({ item, aircraft }) {
   </figure>;
 }
 
-function AirportMap({ item, direction }) {
-  const [target, near] = useNearViewport();
+function AirportMap({ item, direction, preview, onPreview }) {
   const located = Number.isFinite(item.lat) && Number.isFinite(item.lon);
-  return <div ref={target} className="album-airport-map">
-    {near && located ? <MapContainer center={[item.lat, item.lon]} zoom={10} zoomControl={false} dragging={false}
+  return <div className="album-airport-map">
+    {preview && located ? <MapContainer center={[item.lat, item.lon]} zoom={10} zoomControl={false} dragging={false}
       scrollWheelZoom={false} doubleClickZoom={false} touchZoom={false} keyboard={false} attributionControl>
       <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
       <CircleMarker center={[item.lat, item.lon]} radius={9} pathOptions={{ color: '#fff', weight: 3, fillColor: '#ff714a', fillOpacity: 1 }} />
     </MapContainer> : <div className="album-map-placeholder" aria-hidden="true" />}
     <span className={'album-map-direction is-' + direction} aria-hidden="true">{direction === 'departures' ? '↑' : '↓'}</span>
-    {located && <a className="album-map-open" href={`https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lon}#map=11/${item.lat}/${item.lon}`}
+    {located && !preview && <button type="button" className="album-map-open" onClick={onPreview}
+      aria-label={`Afficher la carte de ${item.code}`}>Afficher la carte</button>}
+    {located && preview && <a className="album-map-open" href={`https://www.openstreetmap.org/?mlat=${item.lat}&mlon=${item.lon}#map=11/${item.lat}/${item.lon}`}
       target="_blank" rel="noreferrer">Voir autour de {item.code}</a>}
   </div>;
 }
@@ -233,7 +234,7 @@ function AirportAtlas({ departures, arrivals, routes = noRoutes, onOpenCapture }
   </section>;
 }
 
-function AlbumCard({ item, kind, owned }) {
+function AlbumCard({ item, kind, owned, preview, onPreview }) {
   const airport = kind !== 'models';
   const [accent, tint] = cardPalettes[hash(item.code) % cardPalettes.length];
   const family = airport ? (kind === 'departures' ? 'Point de départ' : 'Destination') : modelFamily(item);
@@ -244,7 +245,7 @@ function AlbumCard({ item, kind, owned }) {
       <header><span>{family}</span><strong>{owned ? 'Dans ton hangar' : 'Fiche à débloquer'}</strong></header>
       <div className="album-card-art">
         <span className="album-card-code" aria-hidden="true">{item.code}</span>
-        {airport ? <AirportMap item={item} direction={kind} /> : <AircraftPhoto item={item} aircraft={owned?.aircraft} />}
+        {airport ? <AirportMap item={item} direction={kind} preview={preview} onPreview={onPreview} /> : <AircraftPhoto item={item} aircraft={owned?.aircraft} />}
         {!owned && <i aria-hidden="true"><span>?</span></i>}
       </div>
       <div className="album-card-copy">
@@ -262,6 +263,7 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
+  const [airportPreview, setAirportPreview] = useState('');
   const [catalog, setCatalog] = useState(null);
   const [totals, setTotals] = useState({});
   const [error, setError] = useState('');
@@ -330,7 +332,8 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
       {catalog?.updated && kind === 'models' && <span>Catalogue ICAO actualisé le {catalogDate(catalog.updated)}</span>}</div>
     {error ? <div className="collection-empty"><p role="alert">{error}</p></div> : loading ?
       <div className="collection-empty"><p role="status">Ouverture du catalogue…</p></div> : sourceItems.length ?
-      <ul className="album-grid">{sourceItems.map(item => <AlbumCard key={item.code} item={item} kind={kind} owned={ownedByCode.get(item.code)} />)}</ul> :
+      <ul className="album-grid">{sourceItems.map(item => <AlbumCard key={item.code} item={item} kind={kind} owned={ownedByCode.get(item.code)}
+        preview={airportPreview === `${kind}:${item.code}`} onPreview={() => setAirportPreview(`${kind}:${item.code}`)} />)}</ul> :
       <div className="collection-empty"><p>{filter === 'owned' ? 'Aucune fiche découverte ne correspond à cette recherche.' : 'Aucune fiche ne correspond à cette recherche.'}</p></div>}
     {pages > 1 && <nav className="album-pagination" aria-label="Pages de l’album">
       <button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Précédente</button>

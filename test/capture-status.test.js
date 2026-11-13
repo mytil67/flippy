@@ -7,6 +7,7 @@ test('distingue les captures au passage de minuit à Paris', () => {
   assert.equal(captureStatus('2026-11-12T23:00:00Z', now), 'today');
   assert.equal(captureStatus('2026-11-12T22:59:59Z', now), 'previous');
   assert.equal(captureStatus(undefined, now), undefined);
+  assert.equal(captureStatus('date invalide', now), undefined);
 });
 
 test('un changement d’indicatif ne réutilise pas la capture du vol précédent', () => {

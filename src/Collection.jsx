@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { collectionRequest } from './collectionRequest.js';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { knownAirline } from '../lib/flight.js';
@@ -76,15 +77,6 @@ function CompanyLogo({ code, iata, flight, name }) {
   return <span className="collection-logo">
     {/^[A-Z0-9]{2}$/.test(logo) && failed !== logo ? <img src={`https://pics.avs.io/160/54/${logo}.png`} alt={name ? `Logo ${name}` : ''} loading="lazy" onError={() => setFailed(logo)} /> : <span>{code || '✈'}</span>}
   </span>;
-}
-
-export async function collectionRequest(query = '', options, path = '/api/collection') {
-  const timeout = AbortSignal.timeout(30000);
-  const signal = options?.signal ? AbortSignal.any([options.signal, timeout]) : timeout;
-  const response = await fetch(path + query, { ...options, signal });
-  const data = await response.json();
-  if (!response.ok) throw Object.assign(new Error(data.error || 'La collection est indisponible.'), { status: response.status });
-  return data;
 }
 
 function Account({ data, onUpdate }) {

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { center, distanceKm, knownAirline, radius } from '../lib/flight.js';
 import RadarMap, { planePath } from './RadarMap.jsx';
-import { collectionRequest } from './Collection.jsx';
+import { collectionRequest } from './collectionRequest.js';
 import { captureFlightKey, captureLabels, captureStatus } from './captureStatus.js';
 import { playbackFrames, useReplay } from './replay.js';
 import { buildTraceGeometry } from './traceGeometry.js';
@@ -292,6 +292,7 @@ export default function App() {
     let controller;
     let revision = 0;
     async function refresh() {
+      if (document.hidden) return;
       setCaptureNow(Date.now());
       controller?.abort();
       controller = new AbortController();
@@ -313,7 +314,14 @@ export default function App() {
     refresh();
     const timer = setInterval(refresh, 60000);
     window.addEventListener('focus', refresh);
-    return () => { revision++; controller?.abort(); clearInterval(timer); window.removeEventListener('focus', refresh); };
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      revision++;
+      controller?.abort();
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
   }, [radarAircraft, capture]);
   const params = selected && mode === 'live' ? lookupParams(selected) : '';
   const reportedRoute = detail?.params === params ? detail.data : null;
