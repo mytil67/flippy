@@ -514,6 +514,7 @@ export default function App() {
   }, [planes, clearReplay]);
 
   const advanceStation = useEffectEvent(() => {
+    if (stationPaused || selectedCapture?.pending) return false;
     if (focus?.automatic) {
       setFocus(null);
       return true;
@@ -530,7 +531,7 @@ export default function App() {
   const stationHasTraffic = Boolean(planes.length || radarHistory.size);
   const automaticSeconds = Math.min(15, Math.floor(stationInterval * .6));
   useEffect(() => {
-    if (!station || stationPaused || (focus && !focus.automatic) || !stationHasTraffic) return;
+    if (!station || stationPaused || selectedCapture?.pending || (focus && !focus.automatic) || !stationHasTraffic) return;
     const seconds = focus ? automaticSeconds : seenSpotlights.current.size ? stationInterval - automaticSeconds : 4;
     let timer;
     function advance() {
@@ -546,7 +547,7 @@ export default function App() {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', schedule);
     };
-  }, [station, stationPaused, focus, stationHasTraffic, stationInterval, automaticSeconds]);
+  }, [station, stationPaused, selectedCapture?.pending, focus, stationHasTraffic, stationInterval, automaticSeconds]);
 
   function closeTraffic() {
     setShowTraffic(false);
@@ -689,10 +690,7 @@ export default function App() {
     </>}
     {station && focus && <StationTicket key={focus.revision} plane={selected} route={route} loading={routeLoading || traceLoading}
       duration={duration} automatic={focus.automatic} onClose={returnToRadar}
-      canCapture={canCapture} capture={selectedCapture} onCapture={() => {
-        setStationPaused(true);
-        capturePlane();
-      }} />}
+      canCapture={canCapture} capture={selectedCapture} onCapture={capturePlane} />}
     {!station && focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
       ref={panel} aria-label="Informations sur les vols">
       <div className="flight-panel">

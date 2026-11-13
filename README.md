@@ -17,7 +17,7 @@ Ouvrir le [radar local](http://localhost:8765/) ou la [collection locale](http:/
 
 Vite monte les fonctions du radar, des photos, du compte et de la collection sur le serveur local. `/api/catalog` est servi par Vercel.
 
-Le bouton **Station radar** ouvre l’affichage tablette. L’URL `/?station=1&interval=30` ouvre directement ce mode et règle l’intervalle à 30 secondes. Le défilement démarre après un appui sur **Lancer le défilement**. Il privilégie les vols en direct puis les passages récents, et s’interrompt lorsqu’un vol est sélectionné à la main.
+Le bouton **Station radar** ouvre l’affichage tablette. L’URL `/?station=1&interval=30` ouvre directement ce mode et règle l’intervalle à 30 secondes. Le défilement démarre après un appui sur **Lancer le défilement**. Il privilégie les vols en direct puis les passages récents, et s’arrête lorsqu’un vol est sélectionné à la main. Lors d’une capture, le billet reste à l’écran pendant l’enregistrement. Le défilement reprend ensuite s’il était actif.
 
 ### Configuration serveur
 
