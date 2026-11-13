@@ -7,7 +7,7 @@ import { flightTrace } from '../lib/trace.js';
 import { reconcileRoute, routeDistance, routeStatus, validateRouteDirection } from '../lib/routeEvidence.js';
 import { airportByCode } from '../lib/airportLookup.js';
 
-const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], recent: [] };
+const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], routes: [], recent: [] };
 let evidenceSchema;
 
 function ensureEvidenceSchema(sql) {
@@ -53,6 +53,12 @@ async function collection(sql, owner) {
       SELECT arrival_code AS code, count(*)::int AS count, max(captured_at) AS last_seen
       FROM own WHERE arrival_code IS NOT NULL GROUP BY arrival_code
     ),
+    routes AS (
+      SELECT departure_code AS departure, arrival_code AS arrival, count(*)::int AS count
+      FROM own WHERE departure_code IS NOT NULL AND arrival_code IS NOT NULL
+        AND departure_code <> arrival_code
+      GROUP BY departure_code, arrival_code
+    ),
     record_capture AS (
       SELECT * FROM own WHERE route_km IS NOT NULL
       ORDER BY route_km DESC, captured_at DESC LIMIT 1
@@ -91,6 +97,7 @@ async function collection(sql, owner) {
       COALESCE((SELECT json_agg(airlines ORDER BY route_km DESC NULLS LAST, kilometers DESC NULLS LAST, count DESC, name) FROM airlines), '[]') AS airlines,
       COALESCE((SELECT json_agg(departures ORDER BY count DESC, code) FROM departures), '[]') AS departures,
       COALESCE((SELECT json_agg(arrivals ORDER BY count DESC, code) FROM arrivals), '[]') AS arrivals,
+      COALESCE((SELECT json_agg(routes ORDER BY count DESC, departure, arrival) FROM routes), '[]') AS routes,
       COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent
     FROM own`;
   const record = row.record ? {
@@ -106,7 +113,7 @@ async function collection(sql, owner) {
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
-async function airportCaptures(sql, owner, code, page) {
+async function airportCaptures(sql, owner, code, page, departure, arrival) {
   const pageSize = 10;
   const [result] = await sql`
     WITH matches AS (
@@ -115,6 +122,8 @@ async function airportCaptures(sql, owner, code, page) {
         route_status, reported_departure_code, reported_arrival_code
       FROM flippy_captures WHERE collector_id = ${owner}
         AND (departure_code = ${code} OR arrival_code = ${code})
+        AND (${departure}::text IS NULL OR departure_code = ${departure})
+        AND (${arrival}::text IS NULL OR arrival_code = ${arrival})
     ), entries AS (
       SELECT * FROM matches ORDER BY captured_at DESC, aircraft, callsign
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
@@ -190,10 +199,15 @@ export default async function handler(request, response) {
       if (searchParams.has('airport')) {
         const code = searchParams.get('airport');
         const page = Number(searchParams.get('page') ?? 1);
-        if (!/^[A-Z0-9]{3,4}$/.test(code) || !Number.isSafeInteger(page) || page < 1 || page > 100000) {
+        const departure = searchParams.get('departure');
+        const arrival = searchParams.get('arrival');
+        const airportCode = /^[A-Z0-9]{3,4}$/;
+        const invalidRoute = (departure !== null || arrival !== null) &&
+          (!airportCode.test(departure) || !airportCode.test(arrival) || (departure !== code && arrival !== code));
+        if (!airportCode.test(code) || invalidRoute || !Number.isSafeInteger(page) || page < 1 || page > 100000) {
           return reply(response, 400, { error: 'Aéroport ou page invalide.' });
         }
-        return reply(response, 200, owner ? await airportCaptures(sql, owner, code, page) : { total: 0, items: [], pages: 0 });
+        return reply(response, 200, owner ? await airportCaptures(sql, owner, code, page, departure, arrival) : { total: 0, items: [], pages: 0 });
       }
       const [data, local] = await Promise.all([
         owner ? collection(sql, owner) : empty,

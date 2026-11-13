@@ -339,6 +339,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .album-atlas-legend .is-departure { --pin-color: #ff714a; }
 .album-atlas-legend .is-arrival { --pin-color: #55cdb7; }
 .album-atlas-legend .is-both { --pin-color: #f2c66d; }
+.album-atlas-legend .is-connection::before { width: 16px; height: 0; border: 0; border-top: 2px dashed #55cdb7; border-radius: 0; }
 .album-atlas-map { position: relative; height: min(46vh, 430px); min-height: 330px; border-top: 1px solid #3d6070; background: #d6e3e5; }
 .album-atlas-map .leaflet-container { width: 100%; height: 100%; background: #d6e3e5; }
 .album-atlas-map .leaflet-tile-pane { filter: saturate(.56) contrast(.93) brightness(1.04); }
