@@ -1,0 +1,48 @@
+.fleet-directory, .fleet-profile { padding: 8px 0 20px; }
+.fleet-directory > header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; margin-bottom: 14px; }
+.fleet-directory h2, .fleet-profile h2 { font-size: clamp(1.7rem, 4vw, 2.8rem); line-height: 1.06; letter-spacing: -.05em; overflow-wrap: anywhere; }
+.fleet-directory header p, .fleet-section header span, .fleet-map-caption, .fleet-empty { color: var(--muted); font-size: .85rem; }
+.fleet-directory header p { margin-top: 5px; }
+.fleet-directory input { min-height: 44px; max-width: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: #071923; color: #fff; }
+.fleet-directory-list, .fleet-aircraft, .fleet-routes { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fleet-directory-list { grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); }
+.fleet-directory-list button, .fleet-routes button {
+  display: grid; align-items: center; gap: 10px; width: 100%; min-height: 62px;
+  padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: #102f3d; color: inherit; text-align: left;
+}
+.fleet-directory-list button { grid-template-columns: 76px minmax(0, 1fr) auto 10px; }
+.fleet-directory-list button:hover, .fleet-routes button:hover, .fleet-routes button[aria-pressed="true"] { background: var(--raised); border-color: #78b8af; }
+.fleet-directory-list .collection-logo { width: 76px; height: 38px; padding: 5px; font-size: .64rem; line-height: 1.1; text-align: center; overflow-wrap: anywhere; }
+.fleet-directory-list button strong, .fleet-routes button strong { display: block; overflow-wrap: anywhere; }
+.fleet-directory-list small, .fleet-routes small, .fleet-aircraft small { display: block; margin-top: 3px; color: var(--muted); }
+.fleet-directory-list b { color: var(--mint); white-space: nowrap; font-size: .84rem; }
+.fleet-back { margin-bottom: 9px; }
+.fleet-profile-hero { padding: clamp(16px, 4vw, 30px); border: 1px solid #4a716f; border-radius: 17px; background: radial-gradient(ellipse at top right, #224b51, #0c2837 72%); }
+.fleet-profile-hero .collection-logo { width: min(160px, 100%); height: 52px; margin-bottom: 12px; padding: 8px 11px; text-align: center; }
+.fleet-profile-hero dl { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 15px; }
+.fleet-profile-hero dt { font-size: .75rem; color: var(--muted); }
+.fleet-profile-hero dd { margin-top: 3px; color: var(--mint); font-size: clamp(1.05rem, 3vw, 1.65rem); font-weight: 750; overflow-wrap: anywhere; }
+.fleet-section { margin-top: 14px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; background: #0d2937; }
+.fleet-section > header, .fleet-map-caption { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 12px; margin-bottom: 9px; }
+.fleet-section h3 { margin: 0; font-size: 1.15rem; }
+.fleet-map { height: clamp(235px, 38vh, 380px); border-radius: 9px; background: #d6e3e5; }
+.fleet-map .leaflet-tooltip { color: #102b38; }
+.fleet-map-caption { margin-top: 8px; }
+.fleet-routes button { grid-template-columns: minmax(0, 1fr) auto; }
+.fleet-routes button > :last-child { text-align: right; }
+.fleet-routes button[aria-pressed="true"] strong { color: var(--mint); }
+.fleet-aircraft { grid-template-columns: repeat(auto-fit, minmax(min(100%, 185px), 1fr)); }
+.fleet-aircraft > li { min-width: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 9px; background: #102f3d; }
+.fleet-aircraft .album-aircraft-visual { position: relative; height: clamp(100px, 22vw, 157px); background: #204554; }
+.fleet-aircraft .album-aircraft-visual .album-plane-silhouette { width: 84%; height: 84%; fill: var(--mint); }
+.fleet-aircraft .album-aircraft-visual figcaption { font-size: 9px; }
+.fleet-aircraft > li > div, .fleet-empty { padding: 11px; }
+.fleet-aircraft > li p { overflow-wrap: anywhere; font-size: .85rem; }
+.fleet-section .album-pagination { padding: 10px 0 0; }
+
+@media (max-width: 480px) {
+  .fleet-directory-list button { grid-template-columns: 59px minmax(0, 1fr) auto 7px; gap: 6px; padding-inline: 7px; }
+  .fleet-directory-list .collection-logo { width: 59px; }
+  .fleet-directory-list b { font-size: .75rem; }
+  .fleet-profile-hero dl { gap: 6px; }
+}

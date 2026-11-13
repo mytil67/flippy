@@ -5,10 +5,12 @@ import { latLngBounds } from 'leaflet';
 import { knownAirline } from '../lib/flight.js';
 import { collectionInsights, routeEvidenceGroup, routeReliability } from './collectionInsights.js';
 import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
+import CollectionFleet from './CollectionFleet.jsx';
+import { collectionManufacturers } from './collectionManufacturers.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
-const tabs = [['recent', 'Captures'], ['album', 'Catalogue'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies'], ['stats', 'Statistiques']];
+const tabs = [['recent', 'Captures'], ['album', 'Catalogue'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies'], ['manufacturers', 'Constructeurs'], ['stats', 'Statistiques']];
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const names = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
@@ -162,10 +164,8 @@ function CaptureDetail({ item, onClose }) {
 }
 
 function CollectionCard({ item, tab }) {
-  const airline = tab === 'airlines';
   return <li className="collection-card-item"><div className="collection-card">
-    {airline ? <div className="company-art"><CompanyLogo code={item.code} iata={item.iata} name={item.name} /></div> :
-      <AircraftArt code={tab === 'models' ? item.code : item.model_code} />}
+    <AircraftArt code={tab === 'models' ? item.code : item.model_code} />
     <div className="collection-card-body">
       <h3>{item.name}</h3>
       {tab === 'planes' && item.model && <p>{item.model}</p>}
@@ -352,7 +352,8 @@ export default function Collection() {
     return () => controller.abort();
   }, [attempt]);
 
-  const browsing = tab !== 'album' && tab !== 'stats';
+  const browsing = ['recent', 'planes', 'models'].includes(tab);
+  const manufacturers = useMemo(() => collectionManufacturers(data?.models ?? []), [data?.models]);
   const items = browsing ? data?.[tab] ?? [] : [];
   const term = searchText(query.trim());
   const reliableItems = tab === 'recent' && routeFilter !== 'all'
@@ -401,6 +402,8 @@ export default function Collection() {
             </button>)}
           </nav>
           {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
+          {tab === 'airlines' && <CollectionFleet key="airlines" items={data.airlines ?? []} CompanyLogo={CompanyLogo} />}
+          {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} />}
           {tab === 'stats' && (data.count ? <>
             <CollectionInsights data={data} onOpenCapture={setDetail} />
             {data.record && <RecordFlight record={data.record} />}

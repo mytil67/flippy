@@ -62,7 +62,7 @@ function useNearViewport() {
   return [target, near];
 }
 
-function AircraftPhoto({ item, aircraft }) {
+export function AircraftPhoto({ item, aircraft, compact = false }) {
   const [target, near] = useNearViewport();
   const [photo, setPhoto] = useState();
   useEffect(() => {
@@ -70,6 +70,7 @@ function AircraftPhoto({ item, aircraft }) {
     const controller = new AbortController();
     const load = async () => {
       const params = new URLSearchParams({ code: item.code, name: item.name || item.code });
+      if (compact) params.set('size', 'compact');
       if (item.manufacturer) params.set('manufacturer', item.manufacturer);
       if (aircraft) params.set('hex', aircraft);
       try {
@@ -82,7 +83,7 @@ function AircraftPhoto({ item, aircraft }) {
     };
     load();
     return () => controller.abort();
-  }, [near, item.code, item.name, item.manufacturer, aircraft]);
+  }, [near, item.code, item.name, item.manufacturer, aircraft, compact]);
   return <figure ref={target} className="album-aircraft-visual">
     {photo ? <><img src={photo.url} alt={`${item.name || item.code}, photo d’appareil`} loading="lazy"
       onError={() => setPhoto(null)} /><figcaption><a href={photo.page} target="_blank" rel="noreferrer">

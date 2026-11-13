@@ -145,6 +145,33 @@ async function matchingCaptures(sql, owner, { code, page, departure, arrival, mo
   return { ...result, pages: Math.ceil(result.total / pageSize) };
 }
 
+async function fleetProfile(sql, owner, airline, models) {
+  const [result] = await sql`
+    WITH own AS (
+      SELECT * FROM flippy_captures WHERE collector_id = ${owner}
+        AND (${airline}::text IS NULL OR airline_code = ${airline})
+        AND (${models}::text[] IS NULL OR model_code = ANY(${models}::text[]))
+    ), fleet AS (
+      SELECT aircraft AS hex, coalesce(max(registration), upper(aircraft)) AS registration,
+        (array_agg(model_code ORDER BY captured_at DESC) FILTER (WHERE model_code IS NOT NULL))[1] AS code,
+        (array_agg(model ORDER BY captured_at DESC) FILTER (WHERE model IS NOT NULL))[1] AS name,
+        count(*)::int AS count, sum(route_km) AS route_km
+      FROM own GROUP BY aircraft
+    ), routes AS (
+      SELECT departure_code AS departure, arrival_code AS arrival, count(*)::int AS count,
+        round(avg(route_km))::int AS distance, sum(route_km) AS route_km
+      FROM own WHERE departure_code IS NOT NULL AND arrival_code IS NOT NULL AND departure_code <> arrival_code
+      GROUP BY departure_code, arrival_code
+    )
+    SELECT count(*)::int AS count, count(route_km)::int AS measured, sum(route_km) AS "routeKm",
+      (SELECT count(*)::int FROM fleet) AS aircraft,
+      coalesce((SELECT json_agg(fleet ORDER BY count DESC, registration, hex) FROM fleet), '[]') AS fleet,
+      coalesce((SELECT json_agg(routes ORDER BY count DESC, departure, arrival) FROM routes), '[]') AS routes
+    FROM own`;
+  return { ...result, routes: result.routes.map(route => ({ ...route,
+    from: airportByCode(route.departure), to: airportByCode(route.arrival) })) };
+}
+
 function observedDistance(segments) {
   let total = 0;
   for (const segment of segments) {
@@ -207,6 +234,16 @@ export default async function handler(request, response) {
     }
     if (action) return await collectionAccess(sql, identity, action, request, response);
     if (request.method === 'GET') {
+      if (searchParams.has('fleetAirline') || searchParams.has('fleetModels')) {
+        const airline = searchParams.get('fleetAirline');
+        const models = searchParams.get('fleetModels')?.split(',') ?? null;
+        if (airline !== null ? models !== null || !/^[A-Z0-9]{2,3}$/.test(airline) :
+          !models?.length || models.length > 250 || models.some(code => !/^[A-Z0-9]{2,5}$/.test(code))) {
+          return reply(response, 400, { error: 'Sélection de flotte invalide.' });
+        }
+        return reply(response, 200, owner ? await fleetProfile(sql, owner, airline, models) :
+          { count: 0, measured: 0, routeKm: null, aircraft: 0, fleet: [], routes: [] });
+      }
       if (searchParams.has('radar')) {
         const aircraft = [...new Set(searchParams.get('radar').split(','))];
         if (aircraft.length > 150 || aircraft.some(hex => !/^[0-9a-f]{6}$/.test(hex))) {
