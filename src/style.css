@@ -288,28 +288,30 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-insights > header h2 { font-size: clamp(20px, 3vw, 28px); letter-spacing: -.035em; }
 .collection-insights > header p { max-width: 62ch; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .collection-insights > header > span { max-width: 190px; color: var(--mint); font-size: 12px; font-weight: 800; text-align: right; }
-.insight-grid { display: grid; grid-template-columns: 1.1fr 1fr 1fr; }
+.insight-routes { padding: 18px clamp(10px, 3vw, 21px); border-bottom: 1px solid var(--line); }
+.insight-route-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.insight-route-heading h3 { margin: 0; font-size: 17px; }
+.insight-route-heading select { max-width: 100%; min-height: 42px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: var(--surface); }
+.insight-route-list { display: grid; gap: 6px; padding: 0; margin: 10px 0; list-style: none; }
+.insight-route-list > li { min-width: 0; }
+.insight-route-list > li > button { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, auto); align-items: center; gap: 8px; width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: var(--surface); text-align: left; }
+.insight-route-list > li > button:hover, .insight-route-list > li > button[aria-pressed="true"] { border-color: var(--mint); background: var(--raised); }
+.insight-route-name, .insight-route-facts { display: grid; gap: 4px; overflow-wrap: anywhere; }
+.insight-route-facts { color: var(--mint); font-size: 13px; text-align: right; }
+.insight-route-list small, .insight-route-detail > p { color: var(--muted); font-size: 12px; }
+.insight-route-detail { padding: 10px; }
+.insight-route-detail h4 { margin: 10px 0; }
+.insight-route-list .album-atlas-captures { padding: 10px; }
+.insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .insight-grid > section { min-width: 0; padding: 19px 21px 21px; }
 .insight-grid > section + section { border-left: 1px solid var(--line); }
 .insight-grid h3 { margin: 0 0 16px; font-size: 13px; }
-.insight-airports { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px 0 17px; border-block: 1px solid var(--line); }
-.insight-airports div:last-child { text-align: right; }
-.insight-airports small, .insight-airports span { display: block; color: var(--muted); font-size: 10px; }
-.insight-airports strong { display: block; margin: 3px 0; font: 800 27px/1 ui-monospace, monospace; letter-spacing: -.06em; }
-.insight-airports b { color: var(--amber); font-size: 18px; transform: rotate(35deg); }
-.insight-airline { display: flex; align-items: center; gap: 10px; margin-top: 15px; }
-.insight-airline p { min-width: 0; }
-.insight-airline strong, .insight-airline span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.insight-airline strong { font-size: 13px; }
-.insight-airline span { margin-top: 2px; color: var(--muted); font-size: 10px; }
 .insight-bars { display: grid; gap: 11px; margin: 0; padding: 0; list-style: none; }
 .insight-bars li > div { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
 .insight-bars strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 12px/1.2 ui-monospace, monospace; }
 .insight-bars li > div span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .insight-bars i { display: block; height: 5px; overflow: hidden; border-radius: 5px; background: #183b48; }
 .insight-bars i span { display: block; height: 100%; min-width: 3px; border-radius: inherit; background: var(--mint); }
-.insight-periods i span { background: var(--amber); }
-.insight-periods small { display: block; margin-top: 3px; color: var(--muted); font-size: 9px; }
 .insight-empty { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .collection-tabs { display: flex; flex-wrap: wrap; gap: 4px; margin: 20px 0 10px; padding-bottom: 5px; border-bottom: 1px solid var(--line); }
 .collection-tabs button, .collection-empty button { min-height: 40px; padding: 5px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 750; }

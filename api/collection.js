@@ -54,10 +54,19 @@ async function collection(sql, owner) {
       FROM own WHERE arrival_code IS NOT NULL GROUP BY arrival_code
     ),
     routes AS (
-      SELECT departure_code AS departure, arrival_code AS arrival, count(*)::int AS count
+      SELECT departure_code AS departure, arrival_code AS arrival, count(*)::int AS count,
+        count(*) FILTER (WHERE route_status IN ('confirmed', 'probable'))::int AS supported,
+        round(avg(route_km))::int AS distance
       FROM own WHERE departure_code IS NOT NULL AND arrival_code IS NOT NULL
         AND departure_code <> arrival_code
       GROUP BY departure_code, arrival_code
+    ),
+    route_airlines AS (
+      SELECT departure_code AS departure, arrival_code AS arrival, airline_code AS code,
+        coalesce(max(airline), airline_code) AS name, max(airline_iata) AS iata, count(*)::int AS count
+      FROM own WHERE departure_code IS NOT NULL AND arrival_code IS NOT NULL
+        AND departure_code <> arrival_code AND airline_code IS NOT NULL
+      GROUP BY departure_code, arrival_code, airline_code
     ),
     record_capture AS (
       SELECT * FROM own WHERE route_km IS NOT NULL
@@ -98,6 +107,7 @@ async function collection(sql, owner) {
       COALESCE((SELECT json_agg(departures ORDER BY count DESC, code) FROM departures), '[]') AS departures,
       COALESCE((SELECT json_agg(arrivals ORDER BY count DESC, code) FROM arrivals), '[]') AS arrivals,
       COALESCE((SELECT json_agg(routes ORDER BY count DESC, departure, arrival) FROM routes), '[]') AS routes,
+      COALESCE((SELECT json_agg(route_airlines ORDER BY count DESC, name, code) FROM route_airlines), '[]') AS "routeAirlines",
       COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent
     FROM own`;
   const record = row.record ? {

@@ -124,7 +124,7 @@ function AirportAtlasFit({ airports }) {
   return null;
 }
 
-function AirportCaptures({ airport, route, onOpenCapture }) {
+export function AirportCaptures({ airport, route, onOpenCapture }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
