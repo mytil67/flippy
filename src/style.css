@@ -258,10 +258,8 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-topbar > div { display: flex; flex-wrap: wrap; justify-content: end; gap: 6px; }
 .collection-brand { font-size: 29px; font-weight: 850; letter-spacing: -.065em; }
 .collection-brand span { color: var(--amber); }
-.collection-header { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr); overflow: hidden; margin-bottom: 22px; border: 1px solid var(--line); border-radius: 28px 28px 28px 8px; background: #0d2a38; }
-.collection-header > div { padding: clamp(15px, 4vw, 32px); align-self: center; }
-.collection-header h1 { max-width: 500px; font-size: clamp(34px, 5vw, 62px); letter-spacing: -.06em; line-height: .96; }
-.collection-intro p { max-width: 48ch; margin-top: 16px; color: var(--muted); font-size: clamp(13px, 1.6vw, 16px); line-height: 1.45; }
+.collection-header { margin: 18px 0 20px; }
+.collection-header h1 { font-size: clamp(29px, 5vw, 44px); letter-spacing: -.045em; line-height: 1.08; }
 .collection-back { display: inline-flex; align-items: center; min-height: 42px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--mint); font-size: 13px; font-weight: 750; text-decoration: none; }
 .collection-back:hover { background: var(--raised); }
 .collection-layout { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: 16px; }
@@ -282,9 +280,8 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-disconnect { justify-self: start; }
 .collection-stats { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .collection-stats div { min-width: 0; border: 1px solid var(--line); border-radius: 16px 16px 16px 5px; background: var(--surface); padding: 15px; }
-.collection-stats dt, .collection-note, .collection-record span { color: var(--muted); font-size: 12px; }
+.collection-stats dt, .collection-note { color: var(--muted); font-size: 13px; }
 .collection-stats dd { margin-top: 4px; color: var(--mint); font-size: clamp(17px, 3vw, 26px); font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.collection-record dd { color: #ff9a7d; }
 .collection-note { margin-top: 8px; }
 .collection-insights { margin-top: 22px; overflow: hidden; border: 1px solid var(--line); border-radius: 24px 24px 24px 7px; background: #0a2431; }
 .collection-insights > header { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 19px 21px; border-bottom: 1px solid var(--line); }
@@ -318,7 +315,6 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-tabs button, .collection-empty button { min-height: 40px; padding: 5px 10px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 750; }
 .collection-tabs button:hover, .collection-empty button:hover { background: var(--raised); }
 .collection-tabs button[aria-pressed="true"] { border-color: var(--mint); background: var(--mint); color: #082b2c; }
-.collection-tabs span { margin-left: 4px; font-variant-numeric: tabular-nums; }
 .collection-album { margin-top: 12px; overflow: hidden; border: 1px solid var(--line); border-radius: 24px 24px 24px 7px; background: #091f2b; }
 .album-heading { display: flex; align-items: end; justify-content: space-between; gap: 18px; padding: 20px 22px 15px; }
 .album-heading h2 { font-size: clamp(23px, 4vw, 34px); letter-spacing: -.045em; }
@@ -444,26 +440,6 @@ button.album-map-open { border: 0; min-height: 28px; }
 .album-pagination button { min-height: 37px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: #163b4a; color: #fff; font-size: 11px; font-weight: 800; }
 .album-pagination span { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .album-source { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; }
-.route-reliability { margin: 0 0 13px; padding: 14px 15px; border-left: 3px solid var(--amber); background: #0b222e; }
-.route-reliability header { display: flex; align-items: end; justify-content: space-between; gap: 14px; }
-.route-reliability h2 { font-size: 15px; }
-.route-reliability header p { max-width: 62ch; margin-top: 3px; color: var(--muted); font-size: 11px; }
-.route-reliability header > strong { color: var(--mint); font-size: 12px; white-space: nowrap; }
-.reliability-track { display: flex; height: 6px; overflow: hidden; margin: 12px 0 9px; background: #183b48; }
-.reliability-track span { min-width: 3px; }
-.reliability-confirmed { --evidence-color: #51cbb7; }
-.reliability-probable { --evidence-color: #d8a44d; }
-.reliability-unverified { --evidence-color: #8297a1; }
-.reliability-conflict { --evidence-color: #d36e64; }
-.reliability-unknown { --evidence-color: #385666; }
-.reliability-track span, .reliability-filters button::before { background: var(--evidence-color); }
-.reliability-filters { display: flex; flex-wrap: wrap; gap: 5px; }
-.reliability-filters button { display: inline-flex; align-items: center; gap: 5px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 750; }
-.reliability-filters button::before { width: 7px; height: 7px; border-radius: 50%; content: ''; }
-.reliability-filters button:first-child::before { background: var(--mint); }
-.reliability-filters button span { font-variant-numeric: tabular-nums; }
-.reliability-filters button:hover { background: var(--raised); color: #fff; }
-.reliability-filters button[aria-pressed="true"] { border-color: var(--mint); background: #153b47; color: #fff; }
 .collection-filters { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 12px; }
 .collection-filters input, .collection-filters select { min-width: 0; min-height: 42px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: #edf7f8; font: inherit; font-size: 16px; }
 .collection-filters input { flex: 1 1 180px; }
@@ -474,30 +450,33 @@ button.album-map-open { border: 0; min-height: 28px; }
 .collection-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 236px), 1fr)); align-items: stretch; gap: 12px; margin: 0; padding: 0; list-style: none; }
 .collection-card-item { min-width: 0; display: flex; }
 .collection-card { width: 100%; min-width: 0; display: flex; flex-direction: column; overflow: hidden; padding: 0; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; background: #0d2432; color: inherit; font: inherit; text-align: left; }
-.collection-card-open { min-height: 42px; padding: 8px 11px; border: 0; border-top: 1px solid var(--line); background: #123746; color: var(--mint); font-size: 12px; font-weight: 800; text-align: left; }
-.collection-card-open:hover { background: #1e4b5b; color: #fff; }
+.capture-entries { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.capture-entry { display: grid; grid-template-columns: 72px minmax(0, 1fr) minmax(0, .85fr) minmax(0, .8fr) auto; align-items: center; gap: 14px; width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: inherit; text-align: left; }
+.capture-entry:hover { background: var(--raised); border-color: var(--mint); }
+.capture-entry-flight, .capture-entry-route, .capture-entry-distance { display: grid; min-width: 0; gap: 4px; overflow-wrap: anywhere; }
+.capture-entry-flight strong, .capture-entry-route strong, .capture-entry-distance strong { font-size: 15px; }
+.capture-entry-flight > span, .capture-entry-distance > span, .capture-entry-distance time { color: var(--muted); font-size: 12px; }
+.capture-entry-distance { justify-items: end; text-align: right; }
+.capture-entry-distance strong, .capture-entry-arrow { color: var(--mint); }
+.capture-entry-arrow { font-size: 22px; }
 .aircraft-art { position: relative; display: grid; place-items: center; min-height: 128px; overflow: hidden; margin: 0; color: var(--mint); background: radial-gradient(ellipse at center, #244c5b, #102c3d); }
 .aircraft-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 48%; }
 .aircraft-art > span { font-size: clamp(24px, 5vw, 42px); font-weight: 850; letter-spacing: .06em; opacity: .65; }
 .aircraft-art > strong { position: absolute; top: 7px; right: 7px; padding: 3px 6px; border-radius: 5px; background: #0b2435eb; font-size: 11px; }
 .aircraft-art figcaption { position: absolute; bottom: 0; width: 100%; padding: 4px 6px; background: #071724eb; color: #e2eef2; font-size: 10px; }
 .aircraft-art a { color: inherit; }
-.collection-header .aircraft-art { min-height: 220px; }
-.collection-header .aircraft-art img { object-position: center 61%; }
 .collection-card-body { display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; flex: 1; gap: 6px; padding: 11px; }
 .collection-card-body h3 { margin: 0; overflow-wrap: anywhere; font-size: 17px; }
 .collection-card-body p, .collection-card-meta span { color: var(--muted); font-size: 12px; }
 .collection-card-meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 8px; padding: 8px 11px; border-top: 1px solid var(--line); background: #102b3b; }
 .collection-card-meta strong { color: var(--mint); font-size: 13px; }
 .collection-card-meta > div { flex-basis: 100%; }
-.collection-card-body .collection-route { color: var(--mint); font-weight: 750; }
 .route-status { justify-self: start; display: inline-flex; align-items: center; min-height: 23px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 10px; font-weight: 800; }
 .route-status-confirmed { border-color: #51cbb7; background: #123c3b; color: #9ff1df; }
 .route-status-probable { border-color: #d8a44d; background: #3d321e; color: #ffd790; }
 .route-status-conflict { border-color: #d36e64; background: #432522; color: #ffb0a5; }
 .capture-route-evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .collection-stats div > span { color: var(--muted); font-size: 12px; }
-.collection-record a { display: inline-flex; margin-top: 9px; color: #ffc0ae; font-size: 11px; font-weight: 800; text-underline-offset: 3px; }
 .record-flight { margin-top: 20px; overflow: hidden; border: 1px solid #416473; border-left: 5px solid var(--amber); border-radius: 5px 24px 24px 5px; background: #0a2431; }
 .record-flight > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; }
 .record-flight > header p { color: #ffc0ae; font-size: 12px; font-weight: 800; }
@@ -564,9 +543,15 @@ button.album-map-open { border: 0; min-height: 28px; }
 
 @media (max-width: 720px) {
   .collection-page { padding: 16px 12px; }
-  .collection-header { grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); }
-  .collection-header .aircraft-art { min-height: 117px; }
-  .collection-header .aircraft-art > strong { display: none; }
+  .collection-header { margin-block: 14px; }
+  .capture-entry { grid-template-columns: minmax(0, 1fr) minmax(0, .95fr) auto; gap: 8px 10px; }
+  .capture-entry > .collection-logo { display: none; }
+  .capture-entry-flight { grid-column: 1 / 3; grid-row: 1; }
+  .capture-entry-arrow { grid-column: 3; grid-row: 1 / 3; }
+  .capture-entry-route { grid-column: 1; grid-row: 2; }
+  .capture-entry-distance { grid-column: 2; grid-row: 2; }
+  .collection-filters input { flex-basis: 100%; }
+  .collection-filters select { flex: 1 1 130px; }
   .collection-layout.has-account { grid-template-columns: minmax(0, 1fr); }
   .collection-access { grid-row: 1; padding: 11px; }
   .collection-stats { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -613,11 +598,6 @@ button.album-map-open { border: 0; min-height: 28px; }
   @keyframes panel-enter { from { transform: translateY(9px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 }
 @media (max-width: 520px) {
-  .collection-header { grid-template-columns: minmax(0, 1fr); }
-  .collection-header .aircraft-art { min-height: 150px; }
-  .collection-intro { padding-bottom: 22px !important; }
-  .collection-intro p { margin-top: 12px; }
-  .route-reliability header { align-items: start; flex-direction: column; gap: 5px; }
   .album-heading { align-items: start; flex-direction: column; }
   .album-progress-copy { text-align: left; }
   .album-categories button { min-height: 54px; padding-inline: 9px; text-align: center; }

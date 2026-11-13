@@ -8,7 +8,7 @@ import CollectionAlbum from './CollectionAlbum.jsx';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
-const tabs = [['recent', 'Captures'], ['album', 'Album'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies']];
+const tabs = [['recent', 'Captures'], ['album', 'Album'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies'], ['stats', 'Statistiques']];
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const names = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });
@@ -29,21 +29,10 @@ function RouteStatus({ value }) {
 function ReliabilityFilter({ items, value, onChange }) {
   const groups = useMemo(() => routeReliability(items), [items]);
   if (!items.length) return null;
-  return <section className="route-reliability" aria-labelledby="route-reliability-title">
-    <header><div><h2 id="route-reliability-title">Fiabilité des itinéraires</h2>
-      <p>FLIPPY sépare les trajets corroborés des informations seulement annoncées.</p></div>
-      <strong>{items.length} capture{items.length === 1 ? '' : 's'}</strong></header>
-    <div className="reliability-track" aria-hidden="true">
-      {groups.map(group => <span key={group.key} className={'reliability-' + group.key}
-        style={{ width: `${group.count / items.length * 100}%` }} />)}
-    </div>
-    <div className="reliability-filters" role="group" aria-label="Filtrer par fiabilité du trajet">
-      <button type="button" aria-pressed={value === 'all'} onClick={() => onChange('all')}>Toutes <span>{items.length}</span></button>
-      {groups.map(group => <button key={group.key} type="button" className={'reliability-' + group.key}
-        aria-pressed={value === group.key} onClick={() => onChange(group.key)}>
-        {routeStates[group.key][0].replace('Trajet ', '')} <span>{group.count}</span></button>)}
-    </div>
-  </section>;
+  return <select aria-label="Filtrer par fiabilité du trajet" value={value} onChange={event => onChange(event.target.value)}>
+    <option value="all">Tous les trajets</option>
+    {groups.map(group => <option key={group.key} value={group.key}>{routeStates[group.key][0]} ({group.count})</option>)}
+  </select>;
 }
 
 const aircraftPhotos = {
@@ -172,30 +161,36 @@ function CaptureDetail({ item, onClose }) {
   </dialog>;
 }
 
-function CollectionCard({ item, tab, onOpen }) {
-  const recent = tab === 'recent';
+function CollectionCard({ item, tab }) {
   const airline = tab === 'airlines';
-  const flight = item.flight_number || item.callsign || item.registration || item.aircraft?.toUpperCase();
-  const content = <>
+  return <li className="collection-card-item"><div className="collection-card">
     {airline ? <div className="company-art"><CompanyLogo code={item.code} iata={item.iata} name={item.name} /></div> :
       <AircraftArt code={tab === 'models' ? item.code : item.model_code} />}
     <div className="collection-card-body">
-      <h3>{recent ? flight : item.name}</h3>
-      {recent && item.departure_code && item.arrival_code && <p className="collection-route">{item.departure_code} → {item.arrival_code}</p>}
-      {recent && <RouteStatus value={item.route_status} />}
-      {recent && <p>{[item.model || item.model_code, item.airline].filter(Boolean).join(' · ') || 'Appareil non identifié'}</p>}
+      <h3>{item.name}</h3>
       {tab === 'planes' && item.model && <p>{item.model}</p>}
-      {recent && item.airline && <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />}
     </div>
     <div className="collection-card-meta">
       <div><strong>{item.route_km == null ? 'Trajet inconnu' : distance(item.route_km)}</strong>
-        <span>{item.route_km != null && (recent ? ' · départ → arrivée' : ' · trajets cumulés')}</span></div>
-      <span>{distance(recent ? item.observed_km : item.kilometers)}{(recent ? item.observed_km : item.kilometers) != null && ' observés'}</span>
-      <span>{recent ? date.format(new Date(item.captured_at)) : `${item.count} capture${item.count === 1 ? '' : 's'}`}</span></div>
-  </>;
-  return <li className="collection-card-item"><div className="collection-card">{content}
-    {recent && <button type="button" className="collection-card-open" onClick={() => onOpen(item)}>Voir la fiche de {flight}</button>}
+        <span>{item.route_km != null && ' · trajets cumulés'}</span></div>
+      <span>{distance(item.kilometers)}{item.kilometers != null && ' observés'}</span>
+      <span>{item.count} capture{item.count === 1 ? '' : 's'}</span></div>
   </div></li>;
+}
+
+function CaptureRow({ item, onOpen }) {
+  const flight = item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase();
+  return <li><button type="button" className="capture-entry" onClick={() => onOpen(item)}>
+    <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />
+    <span className="capture-entry-flight"><strong>{flight}</strong>
+      <span>{[item.airline, item.model || item.model_code].filter(Boolean).join(' · ') || 'Appareil non identifié'}</span></span>
+    <span className="capture-entry-route"><strong>{item.departure_code || item.arrival_code ? `${item.departure_code || '—'} → ${item.arrival_code || '—'}` : 'Itinéraire inconnu'}</strong>
+      <RouteStatus value={item.route_status} /></span>
+    <span className="capture-entry-distance"><strong>{item.route_km == null ? '—' : distance(item.route_km)}</strong>
+      {item.observed_km != null && <span>{distance(item.observed_km)} observés</span>}
+      <time dateTime={item.captured_at}>{date.format(new Date(item.captured_at))}</time></span>
+    <span className="capture-entry-arrow" aria-hidden="true">›</span>
+  </button></li>;
 }
 
 function InsightBars({ items, empty, suffix = 'capture' }) {
@@ -333,7 +328,7 @@ function CollectionInsights({ data }) {
 export default function Collection() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('recent');
+  const [tab, setTab] = useState(() => window.location.hash === '#record-flight' ? 'stats' : 'recent');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('default');
   const [routeFilter, setRouteFilter] = useState('all');
@@ -349,7 +344,8 @@ export default function Collection() {
     return () => controller.abort();
   }, [attempt]);
 
-  const items = tab === 'album' ? [] : data?.[tab] ?? [];
+  const browsing = tab !== 'album' && tab !== 'stats';
+  const items = browsing ? data?.[tab] ?? [] : [];
   const term = searchText(query.trim());
   const reliableItems = tab === 'recent' && routeFilter !== 'all'
     ? items.filter(item => routeEvidenceGroup(item.route_status) === routeFilter) : items;
@@ -380,11 +376,7 @@ export default function Collection() {
         </div>
       </nav>
       <header className="collection-header">
-        <div className="collection-intro">
-          <h1>Mon carnet de vol</h1>
-          <p>Les avions croisés au-dessus de l’Alsace, leurs routes et les kilomètres parcourus.</p>
-        </div>
-        <AircraftArt code="A359" />
+        <h1>Mon carnet de vol</h1>
       </header>
       {error ? <div className="collection-empty"><p role="alert">{error}</p><button type="button" onClick={() => {
         setError(''); setAttempt(value => value + 1);
@@ -392,39 +384,38 @@ export default function Collection() {
         <section className="collection-board" aria-label="Tableau de chasse">
           <dl className="collection-stats">
             <div><dt>Captures</dt><dd>{number.format(data.count)}</dd><span>{number.format(data.aircraft)} avion{data.aircraft === 1 ? '' : 's'} distinct{data.aircraft === 1 ? '' : 's'}</span></div>
-            <div><dt>Total départ → arrivée</dt><dd>{data.routeKilometers == null ? '—' : distance(data.routeKilometers)}</dd></div>
-            <div><dt>Distance observée</dt><dd>{distance(data.kilometers)}</dd></div>
-            {data.record && <div className="collection-record"><dt>Plus long trajet</dt><dd>{distance(data.record.kilometers)}</dd><span>{data.record.flight}</span>
-              <a href="#record-flight">Voir le trajet et l’historique</a></div>}
+            <div><dt>Distance des trajets</dt><dd>{data.routeKilometers == null ? '—' : distance(data.routeKilometers)}</dd><span>Entre aéroports, à vol d’oiseau</span></div>
+            <div><dt>Distance observée</dt><dd>{distance(data.kilometers)}</dd><span>Positions reçues par ADS-B</span></div>
           </dl>
-          {data.count > 0 && <p className="collection-note">Trajets calculés à vol d’oiseau entre aéroports pour {data.routeCount ?? 0} captures sur {data.count}. La distance observée couvre les segments ADS-B disponibles.</p>}
-          {data.record && <RecordFlight record={data.record} />}
-          <CollectionInsights data={data} />
           <nav className="collection-tabs" aria-label="Vues de la collection">
             {tabs.map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { if (key !== tab) changeTab(key); }}>
-              {label}{!['recent', 'album'].includes(key) && <span> {data[key].length}</span>}
+              {label}
             </button>)}
           </nav>
           {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
-          {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
-          {tab !== 'album' && items.length > 0 && <div className="collection-filters">
+          {tab === 'stats' && (data.count ? <>
+            {data.record && <RecordFlight record={data.record} />}
+            <CollectionInsights data={data} />
+          </> : <p className="collection-empty">Tes statistiques apparaîtront après ta première capture.</p>)}
+          {browsing && items.length > 0 && <div className="collection-filters">
             <input type="search" aria-label="Rechercher dans cette vue" placeholder="Rechercher dans cette vue" value={query} onChange={event => setQuery(event.target.value)} />
+            {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
             <select aria-label="Trier les résultats" value={sort} onChange={event => setSort(event.target.value)}>
               <option value="default">{tab === 'recent' ? 'Plus récentes' : 'Kilomètres des trajets cumulés'}</option>
               {tab === 'recent' && <option value="distance">Plus longs trajets</option>}
               <option value="name">Ordre alphabétique</option>
             </select>
           </div>}
-          {tab !== 'album' && (term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
-          {tab === 'album' ? null : visible.length ? <ul className="collection-list" aria-label={tabs.find(([key]) => key === tab)[1]}>
-            {visible.map(item => <CollectionCard key={item.code ?? `${item.aircraft}:${item.callsign}:${item.captured_at}`}
-              item={item} tab={tab} onOpen={setDetail} />)}
+          {browsing && (term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
+          {browsing && (visible.length ? <ul className={tab === 'recent' ? 'capture-entries' : 'collection-list'} aria-label={tabs.find(([key]) => key === tab)[1]}>
+            {visible.map(item => tab === 'recent' ? <CaptureRow key={`${item.aircraft}:${item.callsign}:${item.captured_at}`} item={item} onOpen={setDetail} /> :
+              <CollectionCard key={item.code} item={item} tab={tab} />)}
           </ul> : <div className="collection-empty">
             {term ? <p>Aucun résultat pour cette recherche.</p> : routeFilter !== 'all' ? <p>Aucune capture avec ce niveau de fiabilité.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
               <p>Sélectionne un avion en direct et clique sur « Capturer » pour commencer.</p>
               <a className="collection-back" href="/">Ouvrir le radar</a>
             </>}
-          </div>}
+          </div>)}
         </section>
         {showAccount && <Account data={data} onUpdate={next => { setData(next); changeTab('recent'); }} />}
       </div>}
