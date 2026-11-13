@@ -124,14 +124,17 @@ function AirportAtlasFit({ airports }) {
   return null;
 }
 
-export function AirportCaptures({ airport, route, onOpenCapture }) {
+export function AirportCaptures({ airport, route, model, direction, onOpenCapture }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    const params = new URLSearchParams({ airport: airport.code, page });
+    const params = new URLSearchParams({ page });
+    if (model) params.set('model', model.code);
+    else params.set('airport', airport.code);
+    if (direction) params.set('direction', direction);
     if (route) {
       params.set('departure', route.departure);
       params.set('arrival', route.arrival);
@@ -141,16 +144,16 @@ export function AirportCaptures({ airport, route, onOpenCapture }) {
       if (!response.ok) throw new Error(data.error || 'Captures indisponibles.');
       if (!controller.signal.aborted) setResult({ ...data, page });
     }).catch(() => {
-      if (!controller.signal.aborted) setError('Impossible de charger les captures de cet aéroport.');
+      if (!controller.signal.aborted) setError('Impossible de charger ces captures.');
     });
     return () => controller.abort();
-  }, [airport.code, route, page, attempt]);
+  }, [airport?.code, model?.code, direction, route, page, attempt]);
 
   const ready = result?.page === page;
   return <div className="album-atlas-captures">
     {error ? <><p role="alert">{error}</p><button type="button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>Réessayer</button></> :
       !ready ? <p role="status">Chargement des captures…</p> : <>
-        <p role="status">{result.total} capture{result.total === 1 ? '' : 's'} · {route ? `${route.departure} → ${route.arrival}` : airport.name}</p>
+        <p role="status">{result.total} capture{result.total === 1 ? '' : 's'} · {route ? `${route.departure} → ${route.arrival}` : model?.name || airport?.name || model?.code || airport?.code}</p>
         {result.items.length > 0 && <ul>{result.items.map(item => <li key={`${item.aircraft}:${item.callsign}:${item.captured_at}`}>
           <button type="button" onClick={() => onOpenCapture(item)}>
             <strong>{item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase()}</strong>
@@ -159,7 +162,7 @@ export function AirportCaptures({ airport, route, onOpenCapture }) {
           </button>
         </li>)}</ul>}
       </>}
-    {result?.pages > 1 && <nav className="album-pagination" aria-label="Pages des captures de l’aéroport">
+    {result?.pages > 1 && <nav className="album-pagination" aria-label="Pages des captures">
       <button type="button" disabled={!ready || page <= 1} onClick={() => setPage(page - 1)}>Précédente</button>
       <span>Page {page} sur {result.pages}</span>
       <button type="button" disabled={!ready || page >= result.pages} onClick={() => setPage(page + 1)}>Suivante</button>
@@ -260,18 +263,20 @@ function AlbumCard({ item, kind, owned, preview, onPreview }) {
 
 export default function CollectionAlbum({ data, onOpenCapture }) {
   const [kind, setKind] = useState('models');
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useState('owned');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [airportPreview, setAirportPreview] = useState('');
   const [catalog, setCatalog] = useState(null);
-  const [totals, setTotals] = useState({});
+  const [selection, setSelection] = useState('');
+  const [atlasOpen, setAtlasOpen] = useState(false);
   const [error, setError] = useState('');
   const ownedItems = data[kind] ?? [];
   const ownedByCode = useMemo(() => new Map(ownedItems.map(item => [item.code, item])), [ownedItems]);
   const term = normalize(query.trim());
   const localOwned = useMemo(() => ownedItems.filter(item => !term ||
-    normalize([item.code, item.name].filter(Boolean).join(' ')).includes(term)), [ownedItems, term]);
+    normalize([item.code, item.name].filter(Boolean).join(' ')).includes(term))
+    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code, 'fr')), [ownedItems, term]);
 
   useEffect(() => {
     setPage(1);
@@ -289,8 +294,7 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
         const response = await fetch('/api/catalog?' + params, { signal: controller.signal });
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Catalogue indisponible.');
-        setCatalog({ ...result, key: `${kind}:${filter}:${query.trim()}:${page}` });
-        setTotals(current => ({ ...current, [kind]: result.catalogTotal }));
+        if (!controller.signal.aborted) setCatalog({ ...result, key: `${kind}:${filter}:${query.trim()}:${page}` });
       } catch (requestError) {
         if (!controller.signal.aborted) setError(requestError.message);
       }
@@ -300,42 +304,54 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
 
   const ownedPages = Math.max(1, Math.ceil(localOwned.length / pageSize));
   const requestKey = `${kind}:${filter}:${query.trim()}:${page}`;
-  const loading = filter !== 'owned' && catalog?.key !== requestKey && !error;
+  const catalogError = filter !== 'owned' && error;
+  const loading = filter !== 'owned' && catalog?.key !== requestKey && !catalogError;
   const sourceItems = filter === 'owned' ? localOwned.slice((page - 1) * pageSize, page * pageSize) : loading ? [] : catalog?.items ?? [];
   const pages = filter === 'owned' ? ownedPages : catalog?.pages ?? 1;
   const total = filter === 'owned' ? localOwned.length : catalog?.total ?? 0;
-  const catalogTotal = totals[kind] ?? Math.max(ownedItems.length, 1);
-  const progress = Math.min(100, ownedItems.length / catalogTotal * 100);
   const label = categories.find(([key]) => key === kind)?.[2];
 
   return <section className="collection-album" aria-labelledby="album-title">
     <header className="album-heading">
-      <div><h2 id="album-title">Album du ciel</h2><p>Chaque capture révèle une nouvelle fiche dans ton hangar personnel.</p></div>
-      <div className="album-progress-copy"><strong>{number.format(ownedItems.length)}</strong><span>sur {number.format(catalogTotal)} découvert{ownedItems.length === 1 ? '' : 's'}</span></div>
+      <h2 id="album-title">Catalogue</h2>
     </header>
-    <div className="album-progress" role="progressbar" aria-label={`Progression ${label}`} aria-valuemin="0"
-      aria-valuemax={catalogTotal} aria-valuenow={ownedItems.length}><span style={{ width: `${progress}%` }} /></div>
     <nav className="album-categories" aria-label="Collections de l’album">
-      {categories.map(([key, short, full]) => <button key={key} type="button" aria-pressed={kind === key}
-        onClick={() => { setKind(key); setFilter('all'); setQuery(''); }}>{short}<span>{full}</span></button>)}
+      {categories.map(([key, short]) => <button key={key} type="button" aria-pressed={kind === key}
+        onClick={() => { setKind(key); setFilter('owned'); setQuery(''); setSelection(''); setAtlasOpen(false); }}>{short}
+        <span>{number.format(data[key]?.length ?? 0)}</span></button>)}
     </nav>
-    {kind !== 'models' && <AirportAtlas departures={data.departures} arrivals={data.arrivals} routes={data.routes} onOpenCapture={onOpenCapture} />}
     <div className="album-toolbar">
       <div role="group" aria-label="Filtrer les fiches">
-        {[['all', 'Toutes'], ['owned', 'Découvertes'], ['missing', 'À découvrir']].map(([key, text]) =>
-          <button key={key} type="button" aria-pressed={filter === key} onClick={() => setFilter(key)}>{text}</button>)}
+        {[['owned', 'Capturés'], ['missing', 'À découvrir'], ['all', 'Tous']].map(([key, text]) =>
+          <button key={key} type="button" aria-pressed={filter === key} onClick={() => { setFilter(key); setError(''); setSelection(''); }}>{text}</button>)}
+        {kind !== 'models' && <button type="button" aria-expanded={atlasOpen} onClick={() => setAtlasOpen(value => !value)}>Carte des aéroports</button>}
       </div>
-      <input type="search" value={query} onChange={event => setQuery(event.target.value)}
-        aria-label={`Rechercher dans ${label}`} placeholder={kind === 'models' ? 'Code, modèle ou constructeur' : 'Code ou nom d’aéroport'} />
+      <input type="search" value={query} onChange={event => { setQuery(event.target.value); setError(''); setSelection(''); }}
+        aria-label={`Rechercher dans ${label}`} placeholder={kind === 'models' ? 'Nom ou code du modèle' : 'Nom ou code de l’aéroport'} />
     </div>
-    <div className="album-results"><p role="status">{number.format(total)} fiche{total === 1 ? '' : 's'}</p>
-      {catalog?.updated && kind === 'models' && <span>Catalogue ICAO actualisé le {catalogDate(catalog.updated)}</span>}</div>
-    {error ? <div className="collection-empty"><p role="alert">{error}</p></div> : loading ?
+    {kind !== 'models' && atlasOpen && <AirportAtlas departures={data.departures} arrivals={data.arrivals} routes={data.routes} onOpenCapture={onOpenCapture} />}
+    {!loading && !catalogError && <div className="album-results"><p role="status">{number.format(total)} {filter === 'owned' ? 'dans ta collection' : total === 1 ? 'fiche' : 'fiches'}</p></div>}
+    {catalogError ? <div className="collection-empty"><p role="alert">{catalogError}</p></div> : loading ?
       <div className="collection-empty"><p role="status">Ouverture du catalogue…</p></div> : sourceItems.length ?
-      <ul className="album-grid">{sourceItems.map(item => <AlbumCard key={item.code} item={item} kind={kind} owned={ownedByCode.get(item.code)}
-        preview={airportPreview === `${kind}:${item.code}`} onPreview={() => setAirportPreview(`${kind}:${item.code}`)} />)}</ul> :
-      <div className="collection-empty"><p>{filter === 'owned' ? 'Aucune fiche découverte ne correspond à cette recherche.' : 'Aucune fiche ne correspond à cette recherche.'}</p></div>}
-    {pages > 1 && <nav className="album-pagination" aria-label="Pages de l’album">
+      <ul className={filter === 'owned' ? 'album-owned-list' : 'album-grid'}>{sourceItems.map(item => filter === 'owned' ?
+        <li key={item.code} className="album-owned-entry">
+          <button className="album-owned-row" type="button" aria-expanded={selection === item.code}
+            onClick={() => setSelection(selection === item.code ? '' : item.code)}>
+            <span className="album-owned-code">{item.code}</span>
+            <strong>{item.name || item.code}</strong>
+            <span className="album-owned-count">{number.format(item.count)} vol{item.count === 1 ? '' : 's'}</span>
+            <span className="album-owned-chevron" aria-hidden="true">›</span>
+          </button>
+          {selection === item.code && <div className="album-owned-detail">
+            {kind === 'models' && <AircraftPhoto item={item} aircraft={item.aircraft} />}
+            <AirportCaptures key={`${kind}:${item.code}`} model={kind === 'models' ? item : undefined}
+              airport={kind === 'models' ? undefined : item} direction={kind === 'departures' ? 'departure' : kind === 'arrivals' ? 'arrival' : undefined}
+              onOpenCapture={onOpenCapture} />
+          </div>}
+        </li> : <AlbumCard key={item.code} item={item} kind={kind} owned={ownedByCode.get(item.code)}
+          preview={airportPreview === `${kind}:${item.code}`} onPreview={() => setAirportPreview(`${kind}:${item.code}`)} />)}</ul> :
+      <div className="collection-empty"><p>{term ? 'Aucun résultat pour cette recherche.' : filter === 'owned' ? 'Tes captures apparaîtront ici.' : 'Aucune fiche disponible.'}</p></div>}
+    {!loading && !catalogError && pages > 1 && <nav className="album-pagination" aria-label="Pages du catalogue">
       <button type="button" disabled={page <= 1} onClick={() => setPage(value => value - 1)}>Précédente</button>
       <span>Page {page} sur {pages}</span>
       <button type="button" disabled={page >= pages} onClick={() => setPage(value => value + 1)}>Suivante</button>

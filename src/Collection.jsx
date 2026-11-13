@@ -8,7 +8,7 @@ import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
-const tabs = [['recent', 'Captures'], ['album', 'Album'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies'], ['stats', 'Statistiques']];
+const tabs = [['recent', 'Captures'], ['album', 'Catalogue'], ['planes', 'Avions'], ['models', 'Modèles'], ['airlines', 'Compagnies'], ['stats', 'Statistiques']];
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const names = new Intl.Collator('fr', { numeric: true, sensitivity: 'base' });

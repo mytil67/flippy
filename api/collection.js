@@ -123,7 +123,7 @@ async function collection(sql, owner) {
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
-async function airportCaptures(sql, owner, code, page, departure, arrival) {
+async function matchingCaptures(sql, owner, { code, page, departure, arrival, model }) {
   const pageSize = 10;
   const [result] = await sql`
     WITH matches AS (
@@ -131,7 +131,8 @@ async function airportCaptures(sql, owner, code, page, departure, arrival) {
         airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
         route_status, reported_departure_code, reported_arrival_code
       FROM flippy_captures WHERE collector_id = ${owner}
-        AND (departure_code = ${code} OR arrival_code = ${code})
+        AND (${code}::text IS NULL OR departure_code = ${code} OR arrival_code = ${code})
+        AND (${model}::text IS NULL OR model_code = ${model})
         AND (${departure}::text IS NULL OR departure_code = ${departure})
         AND (${arrival}::text IS NULL OR arrival_code = ${arrival})
     ), entries AS (
@@ -216,18 +217,26 @@ export default async function handler(request, response) {
           GROUP BY aircraft, callsign` : [];
         return reply(response, 200, { matches });
       }
-      if (searchParams.has('airport')) {
+      if (searchParams.has('airport') || searchParams.has('model')) {
         const code = searchParams.get('airport');
+        const model = searchParams.get('model');
         const page = Number(searchParams.get('page') ?? 1);
-        const departure = searchParams.get('departure');
-        const arrival = searchParams.get('arrival');
+        let departure = searchParams.get('departure');
+        let arrival = searchParams.get('arrival');
+        const direction = searchParams.get('direction');
         const airportCode = /^[A-Z0-9]{3,4}$/;
         const invalidRoute = (departure !== null || arrival !== null) &&
           (!airportCode.test(departure) || !airportCode.test(arrival) || (departure !== code && arrival !== code));
-        if (!airportCode.test(code) || invalidRoute || !Number.isSafeInteger(page) || page < 1 || page > 100000) {
-          return reply(response, 400, { error: 'Aéroport ou page invalide.' });
+        const validSelection = model === null ? code !== null && airportCode.test(code) :
+          code === null && /^[A-Z0-9]{2,5}$/.test(model) && direction === null;
+        if (!validSelection || invalidRoute || (direction !== null &&
+            (!['departure', 'arrival'].includes(direction) || departure !== null || arrival !== null)) ||
+            !Number.isSafeInteger(page) || page < 1 || page > 100000) {
+          return reply(response, 400, { error: 'Filtre de captures invalide.' });
         }
-        return reply(response, 200, owner ? await airportCaptures(sql, owner, code, page, departure, arrival) : { total: 0, items: [], pages: 0 });
+        if (direction === 'departure') departure = code;
+        if (direction === 'arrival') arrival = code;
+        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { code, model, page, departure, arrival }) : { total: 0, items: [], pages: 0 });
       }
       const [data, local] = await Promise.all([
         owner ? collection(sql, owner) : empty,
