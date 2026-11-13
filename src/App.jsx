@@ -2,6 +2,7 @@ import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } fro
 import { center, distanceKm, knownAirline, radius } from '../lib/flight.js';
 import RadarMap, { planePath } from './RadarMap.jsx';
 import { collectionRequest } from './Collection.jsx';
+import { captureFlightKey, captureLabels, captureStatus } from './captureStatus.js';
 import { playbackFrames, useReplay } from './replay.js';
 import { buildTraceGeometry } from './traceGeometry.js';
 import { flightDurationLabel } from './flightDuration.js';
@@ -257,6 +258,8 @@ export default function App() {
   const [focus, setFocus] = useState(null);
   const [showTraffic, setShowTraffic] = useState(false);
   const [capture, setCapture] = useState(null);
+  const [captureHistory, setCaptureHistory] = useState({});
+  const [captureNow, setCaptureNow] = useState(Date.now);
   const [recenter, setRecenter] = useState(0);
   const [fitRevision, setFitRevision] = useState(0);
   const [following, setFollowing] = useState(false);
@@ -278,7 +281,40 @@ export default function App() {
   const selected = focus?.plane;
   const captureKey = selected && `${selected.id}:${selected.callsign}:${Math.floor((selected.observedAt ?? 0) / 86400000)}`;
   const selectedCapture = capture?.key === captureKey ? capture : null;
+  const radarAircraft = mode === 'live' ? [...new Set([...planes, selected].filter(plane =>
+    /^[0-9a-f]{6}$/.test(plane?.id ?? '')).map(plane => plane.id))].sort().join(',') : '';
+  const captureColors = useMemo(() => mode === 'live' ? Object.fromEntries(Object.entries(captureHistory)
+    .map(([key, at]) => [key, captureStatus(at, captureNow)])) : {}, [mode, captureHistory, captureNow]);
+  const selectedCaptureColor = selected && captureColors[captureFlightKey(selected)];
   const canCapture = mode === 'live' && /^[0-9a-f]{6}$/.test(selected?.id ?? '');
+  useEffect(() => {
+    if (!radarAircraft) return;
+    let controller;
+    let revision = 0;
+    async function refresh() {
+      setCaptureNow(Date.now());
+      controller?.abort();
+      controller = new AbortController();
+      const request = ++revision;
+      try {
+        const ids = radarAircraft.split(',');
+        const batches = [];
+        for (let offset = 0; offset < ids.length; offset += 150) {
+          batches.push(collectionRequest('?radar=' + ids.slice(offset, offset + 150).join(','), { signal: controller.signal }));
+        }
+        const matches = (await Promise.all(batches)).flatMap(batch => batch.matches);
+        if (request !== revision) return;
+        setCaptureHistory(Object.fromEntries(matches.map(row =>
+          [captureFlightKey({ id: row.aircraft, callsign: row.callsign }), row.capturedAt])));
+      } catch {
+        // A collection outage must not interrupt the live radar.
+      }
+    }
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    return () => { revision++; controller?.abort(); clearInterval(timer); window.removeEventListener('focus', refresh); };
+  }, [radarAircraft, capture]);
   const params = selected && mode === 'live' ? lookupParams(selected) : '';
   const reportedRoute = detail?.params === params ? detail.data : null;
   const traceParams = mode === 'live' && selected && /^[0-9a-f]{6}$/.test(selected.id) && Number.isFinite(selected.observedAt)
@@ -469,7 +505,9 @@ export default function App() {
     try {
       const params = new URLSearchParams({ hex: selected.id, vol: selected.callsign });
       const result = await collectionRequest('?' + params, { method: 'POST' });
-      setCapture({ key: captureKey, saved: true, message: result.already ? 'Déjà capturé aujourd’hui.' : 'Ajouté à ta collection !' });
+      if (result.capturedAt) setCaptureHistory(previous => ({ ...previous, [captureFlightKey(selected)]: result.capturedAt }));
+      setCaptureNow(Date.now());
+      setCapture({ key: captureKey, saved: true, message: result.already ? 'Déjà dans ta collection.' : 'Ajouté à ta collection !' });
     } catch (error) {
       setCapture({ key: captureKey, message: error.message, failed: true, needsAccount: error.status === 401 });
     }
@@ -525,7 +563,7 @@ export default function App() {
 
   return <main className="app" ref={display}>
     <section className="map-wrap" aria-label="Carte interactive des avions autour de Schiltigheim">
-      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage}
+      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors}
         flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
         flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
         onSelect={choosePlane} fitReady={Boolean(segments?.length) || (!routeLoading && !traceLoading)} localTrace={Boolean(localTrace)}
@@ -557,6 +595,9 @@ export default function App() {
       {mode === 'live' && snapshot && <a href={snapshot.source === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{snapshot.source} · {clock.format(snapshot.updatedAt)}</a>}
     </div>
     <a className="collection-launch" href="/collection"><Icon name="collection" /> Collection</a>
+    {mode === 'live' && planes.some(plane => captureColors[captureFlightKey(plane)]) && <div className="capture-legend" aria-label="Couleurs des captures">
+      <span className="capture-today">Aujourd’hui</span><span className="capture-previous">Jours précédents</span>
+    </div>}
     {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
     {focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
       ref={panel} aria-label="Informations sur les vols">
@@ -573,6 +614,7 @@ export default function App() {
         </div>
         <FlightTicket plane={selected} route={route} loading={routeLoading || traceLoading} mode={mode} failed={mode === 'live' && failed} />
         {canCapture && <div className="capture-row">
+          {selectedCaptureColor && !selectedCapture?.message && <span>{captureLabels[selectedCaptureColor]}</span>}
           <button type="button" onClick={capturePlane} disabled={capture?.pending || selectedCapture?.saved}>
             <Icon name="collection" />{selectedCapture?.pending ? 'Capture en cours…' : selectedCapture?.saved ? 'Capturé' : 'Capturer'}
           </button>

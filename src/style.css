@@ -95,6 +95,13 @@ button:active:not(:disabled) { transform: translateY(1px); }
 }
 .aircraft-marker:hover, .aircraft-marker:focus-visible { background: #071f2c; opacity: 1 !important; transform: scale(1.08); }
 .aircraft-marker.is-active { color: #fff; background: var(--amber); border: 2px solid #7f2c1d; box-shadow: 0 0 0 5px #fff7eac7, 0 5px 13px #153a4f5c; }
+.capture-today { --capture-color: #087760; }
+.capture-previous { --capture-color: #7048a6; }
+.aircraft-marker.capture-today, .aircraft-marker.capture-previous { color: #fff; background: var(--capture-color); }
+.capture-check { position: absolute; right: -4px; bottom: -3px; display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--capture-color); border-radius: 50%; background: #fff; color: var(--capture-color); font: 800 11px/1 system-ui; }
+.capture-legend { position: absolute; z-index: 1050; top: 174px; left: 148px; display: grid; gap: 4px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 9px; background: #092431; color: #edf7f8; font-size: 11px; pointer-events: none; }
+.capture-legend span { display: flex; align-items: center; gap: 6px; }
+.capture-legend span::before { content: '✓'; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--capture-color); color: #fff; font-size: 10px; }
 .aircraft-marker svg { display: block; width: 22px; height: 22px; fill: currentColor; }
 .aircraft-marker.at-click::before { content: ""; position: absolute; inset: -4px; border: 2px solid #087a70; border-radius: 50%; animation: aircraft-pulse 800ms var(--ease) both; }
 @keyframes aircraft-pulse { from { transform: scale(1); opacity: .9; } to { transform: scale(1.65); opacity: 0; } }
@@ -586,6 +593,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
   .map .leaflet-top.leaflet-left { top: 56px; left: 0; }
   .signal { top: 67px; left: 54px; }
   .collection-launch { top: 141px; left: 10px; }
+  .capture-legend { top: 141px; left: 130px; }
   .map-error { top: 67px; right: 8px; }
   .map-hint { left: 8px; }
   .flight-column { top: auto; right: 8px; bottom: 8px; width: min(410px, calc(100% - 16px)); max-height: 48%; border-radius: 24px 24px 10px 10px; }

@@ -1,8 +1,9 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import { Circle, CircleMarker, MapContainer, Marker, Polyline, ScaleControl, TileLayer, Tooltip, useMap, ZoomControl } from 'react-leaflet';
 import { divIcon, latLngBounds, point } from 'leaflet';
 import { center, radius, distanceKm } from '../lib/flight.js';
 import { nearLongitude } from './traceGeometry.js';
+import { captureFlightKey, captureLabels } from './captureStatus.js';
 
 export const planePath = 'M12 2c1 0 1.6 1.1 1.6 2.3v5.1l7.4 5v1.8l-7.4-2.5v4.5l2.3 1.7v1.5L12 20.3l-3.9 1.1v-1.5l2.3-1.7v-4.5L3 16.2v-1.8l7.4-5V4.3C10.4 3.1 11 2 12 2Z';
 
@@ -78,13 +79,13 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
   return null;
 }
 
-function aircraftIcon(heading, active) {
+function aircraftIcon(heading, active, captureColor) {
   const angle = Number.isFinite(heading) ? heading : 0;
   return divIcon({
-    className: 'aircraft-marker' + (active ? ' is-active at-click' : ''),
+    className: 'aircraft-marker' + (active ? ' is-active at-click' : '') + (captureColor ? ` capture-${captureColor}` : ''),
     iconSize: [34, 34],
     iconAnchor: [17, 17],
-    html: `<svg viewBox="0 0 24 24" style="transform:rotate(${angle}deg)" aria-hidden="true"><path d="${planePath}"/></svg>`
+    html: `<svg viewBox="0 0 24 24" style="transform:rotate(${angle}deg)" aria-hidden="true"><path d="${planePath}"/></svg>${captureColor ? '<span class="capture-check" aria-hidden="true">✓</span>' : ''}`
   });
 }
 
@@ -125,12 +126,20 @@ function AirportPin({ position, airport, title, arrival = false }) {
   </CircleMarker>;
 }
 
-const Aircraft = memo(function Aircraft({ plane, active, muted, flightNumber, flightTime, onSelect }) {
+const Aircraft = memo(function Aircraft({ plane, active, muted, flightNumber, flightTime, onSelect, captureColor }) {
+  const marker = useRef(null);
   const label = plane.callsign || plane.registration || plane.id.toUpperCase();
-  return <Marker position={[plane.lat, plane.lon]} icon={aircraftIcon(plane.heading, active)}
-    title={label} alt={label} opacity={muted ? 0.55 : 1} zIndexOffset={active ? 1000 : 0} eventHandlers={{ click: () => onSelect(plane) }}>
+  const markerLabel = captureColor ? `${label} · ${captureLabels[captureColor]}` : label;
+  const icon = useMemo(() => aircraftIcon(plane.heading, active, captureColor), [plane.heading, active, captureColor]);
+  useEffect(() => {
+    const element = marker.current?.getElement();
+    element?.setAttribute('aria-label', markerLabel);
+    element?.setAttribute('title', markerLabel);
+  }, [icon, markerLabel]);
+  return <Marker ref={marker} position={[plane.lat, plane.lon]} icon={icon}
+    opacity={muted ? (captureColor ? 0.8 : 0.55) : 1} zIndexOffset={active ? 1000 : 0} eventHandlers={{ click: () => onSelect(plane) }}>
     <Tooltip permanent={active} direction="top" offset={[0, -17]} className={active ? 'click-tooltip' : ''}>
-      {active ? <><strong>{flightNumber}</strong><span>{flightTime}</span></> : label}
+      {active ? <><strong>{flightNumber}</strong><span>{flightTime}</span></> : markerLabel}
     </Tooltip>
   </Marker>;
 });
@@ -169,7 +178,7 @@ function LivePosition({ plane, stale }) {
   </CircleMarker>;
 }
 
-export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace }) {
+export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace, captureColors }) {
   const original = focus?.plane;
   const moved = livePosition && (livePosition.lat !== original?.lat || livePosition.lon !== original?.lon);
   const replayTrack = replay && geometry?.tracks[replay.part];
@@ -208,9 +217,9 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         <CoveragePin position={geometry.endOfCoverage} label="Fin de la trace" at={coverage?.end} />
       </>}
       {planes.filter(plane => plane.id !== focus?.plane.id).map(plane =>
-        <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} />
+        <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} captureColor={captureColors[captureFlightKey(plane)]} />
       )}
-      {focus && <Aircraft key={focus.revision} plane={focus.plane} active
+      {focus && <Aircraft key={focus.revision} plane={focus.plane} active captureColor={captureColors[captureFlightKey(focus.plane)]}
         flightNumber={flightNumber} flightTime={flightTime} onSelect={onSelect} />}
       {trail.length > 0 && <Polyline positions={trail} interactive={false} className="observed-trace" pathOptions={liveTrailStyle} />}
       {moved && <LivePosition plane={livePosition} stale={!tracked} />}

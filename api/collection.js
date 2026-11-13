@@ -196,6 +196,16 @@ export default async function handler(request, response) {
     }
     if (action) return await collectionAccess(sql, identity, action, request, response);
     if (request.method === 'GET') {
+      if (searchParams.has('radar')) {
+        const aircraft = [...new Set(searchParams.get('radar').split(','))];
+        if (aircraft.length > 150 || aircraft.some(hex => !/^[0-9a-f]{6}$/.test(hex))) {
+          return reply(response, 400, { error: 'Liste d’appareils invalide.' });
+        }
+        const matches = owner ? await sql`SELECT aircraft, callsign, max(captured_at) AS "capturedAt"
+          FROM flippy_captures WHERE collector_id = ${owner} AND aircraft = ANY(${aircraft}::text[])
+          GROUP BY aircraft, callsign` : [];
+        return reply(response, 200, { matches });
+      }
       if (searchParams.has('airport')) {
         const code = searchParams.get('airport');
         const page = Number(searchParams.get('page') ?? 1);
@@ -227,7 +237,7 @@ export default async function handler(request, response) {
       return reply(response, 409, { error: 'Cet avion n’est plus visible dans le radar. Sélectionne un avion de passage.' });
     }
     const day = new Date(plane.observedAt).toISOString().slice(0, 10);
-    const [duplicate] = await sql`SELECT route_km FROM flippy_captures WHERE collector_id = ${owner}
+    const [duplicate] = await sql`SELECT 1 FROM flippy_captures WHERE collector_id = ${owner}
       AND aircraft = ${hex} AND callsign = ${callsign} AND flight_day = ${day}`;
     const [details, trace] = await Promise.all([
       flightDetails(callsign, hex).catch(() => null),
@@ -248,8 +258,8 @@ export default async function handler(request, response) {
         ${modelCode}, ${details?.airframe?.model || plane.model || null}, ${airline?.icao || airline?.iata || null}, ${airline?.iata || null}, ${airline?.name || null},
         ${observedDistance(trace?.segments ?? [])}, ${routeKm}, ${departureCode}, ${arrivalCode}, ${status}, ${details?.number ?? null},
         ${details?.from?.code ?? null}, ${details?.to?.code ?? null}, ${plane.lat}, ${plane.lon}, ${Number.isFinite(plane.heading) ? plane.heading : null})
-      ON CONFLICT DO NOTHING RETURNING 1`;
-    if (!captured.length) await sql`UPDATE flippy_captures SET
+      ON CONFLICT DO NOTHING RETURNING captured_at`;
+    const [saved] = captured.length ? captured : await sql`UPDATE flippy_captures SET
       flight_number = CASE WHEN route_km IS NULL AND ${routeKm}::integer IS NOT NULL THEN ${route?.number ?? null} ELSE flight_number END,
       route_km = coalesce(route_km, ${routeKm}),
       departure_code = CASE WHEN route_km IS NULL THEN ${departureCode} ELSE departure_code END,
@@ -258,8 +268,8 @@ export default async function handler(request, response) {
       reported_departure_code = ${details?.from?.code ?? null}, reported_arrival_code = ${details?.to?.code ?? null},
       captured_lat = ${plane.lat}, captured_lon = ${plane.lon}, captured_heading = ${Number.isFinite(plane.heading) ? plane.heading : null}
       WHERE collector_id = ${owner} AND aircraft = ${hex} AND callsign = ${callsign}
-        AND flight_day = ${day}`;
-    reply(response, captured.length ? 201 : 200, { already: !captured.length });
+        AND flight_day = ${day} RETURNING captured_at`;
+    reply(response, captured.length ? 201 : 200, { already: !captured.length, capturedAt: saved?.captured_at });
   } catch (error) {
     console.warn('Collection FLIPPY indisponible', error.code ?? error.name);
     reply(response, 503, { error: 'La collection est temporairement indisponible. Réessaie dans un instant.' });
