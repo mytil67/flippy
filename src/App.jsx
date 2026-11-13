@@ -9,6 +9,9 @@ import { flightDurationLabel } from './flightDuration.js';
 import { resolveFlightRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 import { orderTraffic } from './trafficSort.js';
+import { StationControls, StationTicket } from './RadarStation.jsx';
+import { nextSpotlight, spotlightKey, stationIntervals } from './stationTraffic.js';
+import './radarStation.css';
 
 const demo = [
   { id: 'demo-af', callsign: 'AFR1234', registration: 'F-GKXJ', type: 'A320', model: 'Airbus A320', lat: 48.78, lon: 7.98, altitude: 12400, heading: 150, speed: 390,
@@ -256,6 +259,13 @@ function TrafficPanel({ planes, matches, selected, query, searching, status, rou
 
 export default function App() {
   const [mode, setMode] = useState('live');
+  const [station, setStation] = useState(() => new URLSearchParams(location.search).get('station') === '1');
+  const [stationPaused, setStationPaused] = useState(true);
+  const [stationInterval, setStationInterval] = useState(() => {
+    const seconds = Number(new URLSearchParams(location.search).get('interval'));
+    return stationIntervals.includes(seconds) ? seconds : 30;
+  });
+  const seenSpotlights = useRef(new Map());
   const [focus, setFocus] = useState(null);
   const [showTraffic, setShowTraffic] = useState(false);
   const [capture, setCapture] = useState(null);
@@ -287,7 +297,9 @@ export default function App() {
   const captureColors = useMemo(() => mode === 'live' ? Object.fromEntries(Object.entries(captureHistory)
     .map(([key, at]) => [key, captureStatus(at, captureNow)])) : {}, [mode, captureHistory, captureNow]);
   const selectedCaptureColor = selected && captureColors[captureFlightKey(selected)];
-  const canCapture = mode === 'live' && /^[0-9a-f]{6}$/.test(selected?.id ?? '');
+  const canCapture = mode === 'live' && /^[0-9a-f]{6}$/.test(selected?.id ?? '') &&
+    (!station || planes.some(plane => plane.id === selected.id && plane.callsign === selected.callsign &&
+      isFollowPosition(selected, null, plane)));
   useEffect(() => {
     if (!radarAircraft) return;
     let controller;
@@ -490,15 +502,51 @@ export default function App() {
     traceResult?.source === 'FlyItalyADSB' ? 'Trace ADS-B' :
     segments?.length ? (geometry?.partial ? 'Trace ADS-B partielle' : 'Trace enregistrée') : 'Aucune trace exploitable pour ce vol';
 
-  const choosePlane = useCallback(plane => {
-    const latest = planes.find(item => item.id === plane.id) ?? plane;
+  const choosePlane = useCallback((plane, automatic = false) => {
+    const latest = automatic ? plane : planes.find(item => item.id === plane.id && item.callsign === plane.callsign) ?? plane;
+    if (!automatic) setStationPaused(true);
     clearReplay();
     setFollowing(false);
     setLiveSamples([]);
     setExternal(null);
     setShowTraffic(false);
-    setFocus(previous => ({ plane: latest, revision: (previous?.revision ?? 0) + 1 }));
+    setFocus(previous => ({ plane: latest, automatic, revision: (previous?.revision ?? 0) + 1 }));
   }, [planes, clearReplay]);
+
+  const advanceStation = useEffectEvent(() => {
+    if (focus?.automatic) {
+      setFocus(null);
+      return true;
+    }
+    const plane = nextSpotlight(planes, radarHistory, seenSpotlights.current, mode);
+    if (!plane) return false;
+    const key = spotlightKey(plane);
+    seenSpotlights.current.delete(key);
+    seenSpotlights.current.set(key, Date.now());
+    if (seenSpotlights.current.size > 250) seenSpotlights.current.delete(seenSpotlights.current.keys().next().value);
+    choosePlane(plane, true);
+    return true;
+  });
+  const stationHasTraffic = Boolean(planes.length || radarHistory.size);
+  const automaticSeconds = Math.min(15, Math.floor(stationInterval * .6));
+  useEffect(() => {
+    if (!station || stationPaused || (focus && !focus.automatic) || !stationHasTraffic) return;
+    const seconds = focus ? automaticSeconds : seenSpotlights.current.size ? stationInterval - automaticSeconds : 4;
+    let timer;
+    function advance() {
+      if (!advanceStation()) schedule();
+    }
+    function schedule() {
+      clearTimeout(timer);
+      if (!document.hidden) timer = setTimeout(advance, seconds * 1000);
+    }
+    schedule();
+    document.addEventListener('visibilitychange', schedule);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('visibilitychange', schedule);
+    };
+  }, [station, stationPaused, focus, stationHasTraffic, stationInterval, automaticSeconds]);
 
   function closeTraffic() {
     setShowTraffic(false);
@@ -556,6 +604,35 @@ export default function App() {
     setMode(next);
   }
 
+  function changeStation(next) {
+    returnToRadar();
+    setShowTraffic(false);
+    setStationPaused(true);
+    seenSpotlights.current.clear();
+    setStation(next);
+    const url = new URL(location.href);
+    if (next) {
+      url.searchParams.set('station', '1');
+      url.searchParams.set('interval', stationInterval);
+    } else {
+      url.searchParams.delete('station');
+      url.searchParams.delete('interval');
+    }
+    history.replaceState(history.state, '', url);
+  }
+
+  function changeStationInterval(seconds) {
+    setStationInterval(seconds);
+    const url = new URL(location.href);
+    url.searchParams.set('interval', seconds);
+    history.replaceState(history.state, '', url);
+  }
+
+  function toggleStationRotation() {
+    if (stationPaused && focus && !focus.automatic) setFocus(null);
+    setStationPaused(!stationPaused);
+  }
+
   async function toggleFullscreen() {
     setFullscreenError('');
     try {
@@ -566,16 +643,19 @@ export default function App() {
     }
   }
 
-  return <main className="app" ref={display}>
+  return <main className={'app' + (station ? ' radar-station' : '')} ref={display}>
     <section className="map-wrap" aria-label="Carte interactive des avions autour de Schiltigheim">
       <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors}
         flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
         flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
-        onSelect={choosePlane} fitReady={Boolean(segments?.length) || (!routeLoading && !traceLoading)} localTrace={Boolean(localTrace)}
+        onSelect={choosePlane} fitReady={!station && (Boolean(segments?.length) || (!routeLoading && !traceLoading))} localTrace={Boolean(localTrace)}
         recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked}
         livePosition={livePosition} trail={trail} replay={replay.frame} />
     </section>
-    <header className="masthead">
+    {station ? <StationControls count={planes.length} status={status} updated={mode === 'live' && snapshot?.updatedAt}
+      interval={stationInterval} onInterval={changeStationInterval} paused={stationPaused}
+      onPause={toggleStationRotation}
+      onExit={() => changeStation(false)} onFullscreen={toggleFullscreen} /> : <header className="masthead">
       <div className="masthead-identity">
         <a className="brand" href="./" aria-label="Flippy, accueil"><span className="brand-icon"><PlaneIcon /></span>flippy<span className="brand-dot">.</span></a>
         <div className="masthead-station"><h1>Radar de Schiltigheim</h1><span>Alsace · Secteur SXB</span></div>
@@ -586,6 +666,7 @@ export default function App() {
           <button type="button" aria-pressed={mode === 'demo'} onClick={() => changeMode('demo')}>Démo</button>
         </div>
         <div className="radar-actions">
+          <button type="button" className="station-launch" onClick={() => changeStation(true)}><Icon name="radar" /> Station radar</button>
           <button ref={trafficToggle} type="button" className="traffic-toggle" aria-label={'Vols à proximité, ' + planes.length}
             aria-expanded={showTraffic} aria-controls={showTraffic ? 'nearby-flights' : undefined}
             onClick={() => setShowTraffic(value => !value)}>Vols <strong>{planes.length}</strong></button>
@@ -593,8 +674,9 @@ export default function App() {
           <button type="button" onClick={toggleFullscreen} aria-label="Basculer le plein écran" title="Plein écran"><Icon name="fullscreen" /></button>
         </div>
       </div>
-    </header>
+    </header>}
     {fullscreenError && <p role="status" className="map-error">{fullscreenError}</p>}
+    {!station && <>
     <div className={'signal' + (failed && mode === 'live' ? ' signal-failed' : '')} role="status">
       <span className="live-dot" />{status}<span className="signal-detail">· 100 km</span>
       {mode === 'live' && snapshot && <a href={snapshot.source === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{snapshot.source} · {clock.format(snapshot.updatedAt)}</a>}
@@ -604,7 +686,14 @@ export default function App() {
       <span className="capture-today">Aujourd’hui</span><span className="capture-previous">Jours précédents</span>
     </div>}
     {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
-    {focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
+    </>}
+    {station && focus && <StationTicket key={focus.revision} plane={selected} route={route} loading={routeLoading || traceLoading}
+      duration={duration} automatic={focus.automatic} onClose={returnToRadar}
+      canCapture={canCapture} capture={selectedCapture} onCapture={() => {
+        setStationPaused(true);
+        capturePlane();
+      }} />}
+    {!station && focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
       ref={panel} aria-label="Informations sur les vols">
       <div className="flight-panel">
         <div className="panel-header">

@@ -5,6 +5,7 @@ import trace from './api/trace.js';
 import follow from './api/suivi.js';
 import collection from './api/collection.js';
 import account from './api/account.js';
+import aircraftPhoto from './api/aircraft-photo.js';
 
 function attachApi(server) {
   server.middlewares.use('/api/vols', flights);
@@ -13,6 +14,7 @@ function attachApi(server) {
   server.middlewares.use('/api/suivi', follow);
   server.middlewares.use('/api/collection', collection);
   server.middlewares.use('/api/account', account);
+  server.middlewares.use('/api/aircraft-photo', aircraftPhoto);
 }
 
 export default defineConfig({

@@ -92,6 +92,7 @@ async function findPhoto(code, name, manufacturer, hex) {
       cache.delete(key);
       throw error;
     });
+    if (cache.size >= 500) cache.delete(cache.keys().next().value);
     cache.set(key, { promise, expires: Date.now() + (hex ? 86400000 : 604800000) });
   }
   return cache.get(key).promise;
