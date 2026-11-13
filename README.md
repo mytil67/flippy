@@ -33,6 +33,8 @@ Ces variables sont lues côté serveur via `process.env`. Dans Vercel, les rense
 node --env-file=.env.local ./node_modules/vite/bin/vite.js --port 8765
 ```
 
+Dans la station, **Passages** liste les avions détectés qui se rapprochent du radar dans les 20 prochaines minutes. L’estimation projette le cap et la vitesse sol du dernier relevé et donne le temps et la distance au point le plus proche de Schiltigheim. Les relevés de plus d’une minute et les avions qui s’éloignent sont écartés. Toucher un vol ouvre son billet, met le défilement en pause et affiche en pointillés le passage estimé sur la carte.
+
 ## Architecture
 
 | Emplacement | Responsabilité |

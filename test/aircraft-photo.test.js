@@ -22,6 +22,9 @@ test('accepte uniquement les miniatures et liens officiels Planespotters', () =>
   const data = { photos: [{ thumbnail_large: { src: 'https://t.plnspttrs.net/21/photo_280.jpg' },
     link: 'https://www.planespotters.net/photo/123/example', photographer: 'Jane Doe' }] };
   assert.equal(selectPlanespottersPhoto(data)?.author, 'Jane Doe');
+  assert.equal(selectPlanespottersPhoto(data, true)?.url, data.photos[0].thumbnail_large.src);
+  data.photos[0].thumbnail = { src: 'https://t.plnspttrs.net/21/photo_160.jpg' };
+  assert.equal(selectPlanespottersPhoto(data, true)?.url, data.photos[0].thumbnail.src);
   data.photos[0].thumbnail_large.src = 'https://example.com/photo.jpg';
   assert.equal(selectPlanespottersPhoto(data), null);
 });

@@ -178,7 +178,7 @@ function LivePosition({ plane, stale }) {
   </CircleMarker>;
 }
 
-export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace, captureColors }) {
+export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace, captureColors, lightweight, passage }) {
   const original = focus?.plane;
   const moved = livePosition && (livePosition.lat !== original?.lat || livePosition.lon !== original?.lon);
   const replayTrack = replay && geometry?.tracks[replay.part];
@@ -190,7 +190,7 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
       scrollWheelZoom worldCopyJump className="map">
       <MapActions recenter={recenter} bounds={geometry?.bounds} panel={panel} following={following}
         tracked={tracked} fitRevision={fitRevision} fitReady={fitReady} localFocus={localTrace ? focus : null} />
-      <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenIdle={false} updateInterval={100} keepBuffer={4}
+      <TileLayer key={lightweight ? 'station' : 'radar'} url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenIdle={Boolean(lightweight)} updateInterval={100} keepBuffer={lightweight ? 2 : 4}
         attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
       <ZoomControl position="topleft" />
       <ScaleControl position="bottomleft" imperial={false} />
@@ -205,8 +205,8 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         <Tooltip direction="bottom" offset={[0, 5]}>Entzheim · SXB</Tooltip>
       </CircleMarker>}
       {geometry && <>
-        <Polyline positions={geometry.guides} interactive={false} className="observed-trace" pathOptions={guideStyle} />
-        {geometry.tracks.map((segment, index) => <TraceLine key={index} positions={segment} animate={!localTrace} />)}
+        {!passage && <Polyline positions={geometry.guides} interactive={false} className="observed-trace" pathOptions={guideStyle} />}
+        {geometry.tracks.map((segment, index) => <TraceLine key={index} positions={segment} animate={!localTrace && !lightweight} />)}
         {geometry.tracks.slice(1).map((segment, index) => <GapPins key={index}
           before={geometry.tracks[index].at(-1)} after={segment[0]} />)}
         {replayLine && <Polyline positions={replayLine} interactive={false} className="observed-trace" pathOptions={replayStyle} />}
@@ -215,6 +215,15 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         <AirportPin position={geometry.to} airport={route?.to} title={route?.historicalRoute ? 'Arrivée probable' : 'Arrivée annoncée'} arrival />
         <CoveragePin position={geometry.startOfCoverage} label="Début de la trace" at={coverage?.start} />
         <CoveragePin position={geometry.endOfCoverage} label="Fin de la trace" at={coverage?.end} />
+      </>}
+      {passage && <>
+        <Polyline positions={[[passage.plane.lat, passage.plane.lon], passage.point]} interactive={false}
+          pathOptions={{ color: '#ffd288', weight: 2.5, dashArray: '5 8' }} />
+        {passage.closestKm >= 1 && <Polyline positions={[center, passage.point]} interactive={false}
+          pathOptions={{ color: '#ffd288', opacity: .6, weight: 1.5, dashArray: '2 6' }} />}
+        <CircleMarker center={passage.point} radius={6} pathOptions={{ color: '#ffd288', fillColor: '#182c38', fillOpacity: 1, weight: 2 }}>
+          <Tooltip direction="top">Passage estimé au plus près</Tooltip>
+        </CircleMarker>
       </>}
       {planes.filter(plane => plane.id !== focus?.plane.id).map(plane =>
         <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} captureColor={captureColors[captureFlightKey(plane)]} />

@@ -8,7 +8,7 @@
 }
 
 .radar-station .map { background: #18343d; }
-.radar-station .map .leaflet-tile-pane { filter: invert(.92) hue-rotate(175deg) saturate(.58) brightness(.78) contrast(.92); }
+.radar-station .map .leaflet-tile-pane { filter: invert(.88) hue-rotate(175deg); }
 .radar-station .map .leaflet-top.leaflet-left { top: 91px; left: 12px; }
 .radar-station .map .leaflet-control-zoom a { width: 42px; height: 42px; line-height: 42px; }
 
@@ -88,6 +88,7 @@
   width: min(632px, calc(100% - 85px));
   max-height: calc(100% - 125px);
   overflow: auto;
+  touch-action: pan-y pinch-zoom;
   border: 1px solid #4f7580;
   border-radius: 17px;
   background: var(--station-panel);
@@ -119,9 +120,10 @@
   font-size: .68rem;
 }
 .station-photo a, .station-capture-status a { color: inherit; }
-.station-close { position: absolute; top: 8px; right: 8px; z-index: 1; background: #142d3bea; }
+.station-ticket-actions { position: absolute; top: 8px; right: 8px; z-index: 1; display: flex; gap: 4px; }
+.station-close { background: #142d3bea; }
 .station-ticket-body { min-width: 0; padding: 15px 16px 13px; border-left: 1px dashed #4f7580; }
-.station-ticket-label { padding-right: 38px; color: var(--station-accent); }
+.station-ticket-label { padding-right: 82px; min-height: 34px; color: var(--station-accent); }
 .station-ticket-label span { color: var(--station-muted); }
 .station-ticket h2 { margin-top: 3px; font: 750 clamp(1.55rem, 4vw, 2.25rem)/1.05 "Geist", system-ui, sans-serif; letter-spacing: -.055em; overflow-wrap: anywhere; }
 .station-airline { margin-top: 4px; color: var(--station-muted); font-size: .83rem; }
@@ -157,15 +159,56 @@
 }
 .station-capture:hover { background: #d2ffe6; }
 .station-capture-status { margin-top: 5px; font-size: .78rem; }
+.station-passage-readout { display: grid; gap: 3px; margin-top: 8px; padding: 7px 9px; border-left: 2px solid #ffd288; background: #192f38; font-size: .75rem; }
+.station-passage-readout strong { color: #ffd288; font-variant-numeric: tabular-nums; }
+
+.station-passages-toggle[aria-expanded="true"] { background: #244a47; border-color: #6ca797; }
+.station-board {
+  position: absolute;
+  z-index: 1050;
+  inset: 91px 16px auto auto;
+  display: flex;
+  flex-direction: column;
+  width: min(445px, calc(100% - 80px));
+  max-height: calc(100% - 126px);
+  padding: 13px;
+  border: 1px solid #4f7580;
+  border-radius: 16px;
+  background: var(--station-panel);
+  box-shadow: 0 12px 32px #07151c99;
+}
+.station-board-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 0 2px 10px; }
+.station-board-header h2 { font-size: 1.12rem; }
+.station-board-header p, .station-board-note { color: var(--station-muted); font-size: .75rem; }
+.station-board-header svg { width: 20px; height: 20px; }
+.station-board-columns, .station-board-list button {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 5rem 5.5rem;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 8px;
+  text-align: right;
+}
+.station-board-columns { color: var(--station-muted); font-size: .7rem; }
+.station-board-columns > :first-child, .station-board-flight { text-align: left; }
+.station-board-list { min-height: 0; margin: 0; padding: 2px 3px 3px; overflow-y: auto; list-style: none; overscroll-behavior: contain; }
+.station-board-list li + li { margin-top: 4px; }
+.station-board-list button { width: 100%; min-height: 48px; border: 1px solid #365563; border-radius: 8px; color: inherit; background: #112c39; font-size: .83rem; }
+.station-board-list button:hover { background: #1a414c; }
+.station-board-flight { display: grid; gap: 2px; min-width: 0; }
+.station-board-flight small { color: var(--station-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.station-board-eta { color: var(--station-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+.station-board-note { margin-top: 9px; }
 
 @media (max-width: 740px) {
   .station-header { inset: 8px 8px auto; gap: 6px; padding: 7px; }
   .station-actions { gap: 4px; }
-  .station-actions label > span, .station-signal > span { display: none; }
+  .station-actions label > span { display: none; }
   .radar-station .map .leaflet-top.leaflet-left { top: 70px; left: 0; }
   .station-ticket { right: 8px; bottom: 23px; width: min(560px, calc(100% - 65px)); max-height: calc(100% - 95px); }
+  .station-board { top: 70px; right: 8px; max-height: calc(100% - 100px); }
 }
-@media (max-width: 620px) {
+@media (max-width: 700px) {
   .station-header { flex-wrap: wrap; }
   .station-signal { margin-left: auto; }
   .station-actions { width: 100%; justify-content: flex-end; }
@@ -173,8 +216,11 @@
   .radar-station .map .leaflet-top.leaflet-left { top: 115px; }
   .station-ticket { grid-template-columns: minmax(0, 1fr); width: min(390px, calc(100% - 64px)); max-height: calc(100% - 140px); }
   .station-photo { min-height: 110px; }
+  .station-board { top: 115px; max-height: calc(100% - 142px); width: min(445px, calc(100% - 65px)); }
+  .station-board-columns, .station-board-list button { grid-template-columns: minmax(0, 1fr) 3.5rem 4rem; }
   .station-ticket-body { border-left: 0; border-top: 1px dashed #4f7580; }
   .radar-actions .station-launch { font-size: 11px; padding-inline: 7px; }
   .radar-actions .station-launch svg { display: none; }
 }
+@media (max-width: 375px) { .station-passages-toggle span { display: none; } }
 @media (prefers-reduced-motion: reduce) { .station-ticket { animation: none; } }

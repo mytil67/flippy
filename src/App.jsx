@@ -9,8 +9,8 @@ import { flightDurationLabel } from './flightDuration.js';
 import { resolveFlightRoute, routeDistance, validateRouteDirection } from '../lib/routeEvidence.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from './liveTrail.js';
 import { orderTraffic } from './trafficSort.js';
-import { StationControls, StationTicket } from './RadarStation.jsx';
-import { nextSpotlight, spotlightKey, stationIntervals } from './stationTraffic.js';
+import { StationControls, StationPassages, StationTicket } from './RadarStation.jsx';
+import { nextSpotlight, spotlightKey, stationIntervals, upcomingPassages } from './stationTraffic.js';
 import './radarStation.css';
 
 const demo = [
@@ -79,12 +79,20 @@ function useTraffic(mode) {
   const [radarHistory, setRadarHistory] = useState(() => new Map());
   useEffect(() => {
     if (mode === 'demo') return;
-    const controller = new AbortController();
+    let controller;
+    let startedAt;
     let timer;
     async function update() {
+      clearTimeout(timer);
+      if (document.hidden || !navigator.onLine) return;
+      if (controller && Date.now() - startedAt < 12000) return;
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      startedAt = Date.now();
       try {
-        const data = await read('/api/vols', controller.signal);
-        if (!controller.signal.aborted) {
+        const data = await read('/api/vols', request.signal);
+        if (!request.signal.aborted) {
           setSnapshot(data);
           setRadarHistory(history => recordRadarHistory(
             recordRadarHistory(history, data.previousAircraft ?? [], data.updatedAt),
@@ -94,15 +102,33 @@ function useTraffic(mode) {
           setFailed(false);
         }
       } catch {
-        if (!controller.signal.aborted) setFailed(true);
+        if (!request.signal.aborted) setFailed(true);
       } finally {
-        if (!controller.signal.aborted) timer = setTimeout(update, 15000);
+        if (controller === request) {
+          controller = undefined;
+          timer = setTimeout(update, 15000);
+        }
       }
     }
+    function offline() {
+      controller?.abort();
+      controller = undefined;
+      clearTimeout(timer);
+      setFailed(true);
+    }
+    const resumeEvents = ['focus', 'pageshow', 'online'];
+    for (const event of resumeEvents) window.addEventListener(event, update);
+    document.addEventListener('visibilitychange', update);
+    window.addEventListener('offline', offline);
+    if (!navigator.onLine) setFailed(true);
     update();
     return () => {
-      controller.abort();
+      controller?.abort();
+      controller = undefined;
       clearTimeout(timer);
+      for (const event of resumeEvents) window.removeEventListener(event, update);
+      document.removeEventListener('visibilitychange', update);
+      window.removeEventListener('offline', offline);
     };
   }, [mode]);
   return { planes: mode === 'demo' ? demo : snapshot?.aircraft ?? [], snapshot, failed, radarHistory };
@@ -261,6 +287,7 @@ export default function App() {
   const [mode, setMode] = useState('live');
   const [station, setStation] = useState(() => new URLSearchParams(location.search).get('station') === '1');
   const [stationPaused, setStationPaused] = useState(true);
+  const [passagesOpen, setPassagesOpen] = useState(false);
   const [stationInterval, setStationInterval] = useState(() => {
     const seconds = Number(new URLSearchParams(location.search).get('interval'));
     return stationIntervals.includes(seconds) ? seconds : 30;
@@ -450,10 +477,10 @@ export default function App() {
   }, [outsideId, outsideKey]);
 
   useEffect(() => {
-    if (!following) return;
+    if (!following && !passagesOpen && !focus?.showPassage) return;
     const timer = setInterval(() => setClockNow(Date.now()), 5000);
     return () => clearInterval(timer);
-  }, [following]);
+  }, [following, passagesOpen, focus?.showPassage]);
 
   useEffect(() => {
     if (!callsigns) return;
@@ -502,36 +529,43 @@ export default function App() {
     traceResult?.source === 'FlyItalyADSB' ? 'Trace ADS-B' :
     segments?.length ? (geometry?.partial ? 'Trace ADS-B partielle' : 'Trace enregistrée') : 'Aucune trace exploitable pour ce vol';
 
-  const choosePlane = useCallback((plane, automatic = false) => {
+  const choosePlane = useCallback((plane, automatic = false, showPassage = false) => {
     const latest = automatic ? plane : planes.find(item => item.id === plane.id && item.callsign === plane.callsign) ?? plane;
     if (!automatic) setStationPaused(true);
+    if (station) seenSpotlights.current.set(spotlightKey(latest), Date.now());
     clearReplay();
     setFollowing(false);
     setLiveSamples([]);
     setExternal(null);
     setShowTraffic(false);
-    setFocus(previous => ({ plane: latest, automatic, revision: (previous?.revision ?? 0) + 1 }));
-  }, [planes, clearReplay]);
+    setPassagesOpen(false);
+    setFocus(previous => ({ plane: latest, automatic, showPassage, revision: (previous?.revision ?? 0) + 1 }));
+  }, [planes, clearReplay, station]);
 
-  const advanceStation = useEffectEvent(() => {
-    if (stationPaused || selectedCapture?.pending) return false;
-    if (focus?.automatic) {
-      setFocus(null);
-      return true;
-    }
-    const plane = nextSpotlight(planes, radarHistory, seenSpotlights.current, mode);
+  const stationOffline = mode === 'live' && failed;
+  const passages = useMemo(() => (passagesOpen || focus?.showPassage) && !stationOffline
+    ? upcomingPassages(planes, Math.max(clockNow, snapshot?.updatedAt ?? 0), mode === 'demo') : [],
+  [passagesOpen, focus?.showPassage, stationOffline, planes, clockNow, snapshot?.updatedAt, mode]);
+  const selectedPassage = focus?.showPassage && passages.find(({ plane }) =>
+    mode === 'demo' ? plane.id === selected.id : isFollowPosition(selected, null, plane));
+  function showNextStationFlight() {
+    if (stationOffline || selectedCapture?.pending) return false;
+    const plane = nextSpotlight(planes, radarHistory, seenSpotlights.current, mode, Date.now(), selected);
     if (!plane) return false;
-    const key = spotlightKey(plane);
-    seenSpotlights.current.delete(key);
-    seenSpotlights.current.set(key, Date.now());
-    if (seenSpotlights.current.size > 250) seenSpotlights.current.delete(seenSpotlights.current.keys().next().value);
     choosePlane(plane, true);
+    return true;
+  }
+  const advanceStation = useEffectEvent(() => {
+    if (stationPaused || stationOffline || selectedCapture?.pending) return false;
+    if (!focus?.automatic) return showNextStationFlight();
+    setFocus(null);
     return true;
   });
   const stationHasTraffic = Boolean(planes.length || radarHistory.size);
   const automaticSeconds = Math.min(15, Math.floor(stationInterval * .6));
   useEffect(() => {
-    if (!station || stationPaused || selectedCapture?.pending || (focus && !focus.automatic) || !stationHasTraffic) return;
+    if (!station || stationPaused || stationOffline || passagesOpen || selectedCapture?.pending ||
+        (focus && !focus.automatic) || !stationHasTraffic) return;
     const seconds = focus ? automaticSeconds : seenSpotlights.current.size ? stationInterval - automaticSeconds : 4;
     let timer;
     function advance() {
@@ -547,7 +581,7 @@ export default function App() {
       clearTimeout(timer);
       document.removeEventListener('visibilitychange', schedule);
     };
-  }, [station, stationPaused, selectedCapture?.pending, focus, stationHasTraffic, stationInterval, automaticSeconds]);
+  }, [station, stationPaused, stationOffline, passagesOpen, selectedCapture?.pending, focus, stationHasTraffic, stationInterval, automaticSeconds]);
 
   function closeTraffic() {
     setShowTraffic(false);
@@ -608,6 +642,7 @@ export default function App() {
   function changeStation(next) {
     returnToRadar();
     setShowTraffic(false);
+    setPassagesOpen(false);
     setStationPaused(true);
     seenSpotlights.current.clear();
     setStation(next);
@@ -620,6 +655,11 @@ export default function App() {
       url.searchParams.delete('interval');
     }
     history.replaceState(history.state, '', url);
+  }
+
+  function togglePassages() {
+    setClockNow(Date.now());
+    setPassagesOpen(!passagesOpen);
   }
 
   function changeStationInterval(seconds) {
@@ -646,16 +686,17 @@ export default function App() {
 
   return <main className={'app' + (station ? ' radar-station' : '')} ref={display}>
     <section className="map-wrap" aria-label="Carte interactive des avions autour de Schiltigheim">
-      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors}
+      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors} lightweight={station}
+        passage={selectedPassage}
         flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
         flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
         onSelect={choosePlane} fitReady={!station && (Boolean(segments?.length) || (!routeLoading && !traceLoading))} localTrace={Boolean(localTrace)}
         recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked}
         livePosition={livePosition} trail={trail} replay={replay.frame} />
     </section>
-    {station ? <StationControls count={planes.length} status={status} updated={mode === 'live' && snapshot?.updatedAt}
+    {station ? <StationControls count={planes.length} status={stationOffline ? snapshot ? 'Dernier relevé' : 'Signal indisponible' : status} updated={mode === 'live' && snapshot?.updatedAt}
       interval={stationInterval} onInterval={changeStationInterval} paused={stationPaused}
-      onPause={toggleStationRotation}
+      onPause={toggleStationRotation} passagesOpen={passagesOpen} onPassages={togglePassages}
       onExit={() => changeStation(false)} onFullscreen={toggleFullscreen} /> : <header className="masthead">
       <div className="masthead-identity">
         <a className="brand" href="./" aria-label="Flippy, accueil"><span className="brand-icon"><PlaneIcon /></span>flippy<span className="brand-dot">.</span></a>
@@ -688,8 +729,12 @@ export default function App() {
     </div>}
     {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
     </>}
-    {station && focus && <StationTicket key={focus.revision} plane={selected} route={route} loading={routeLoading || traceLoading}
+    {station && passagesOpen && <StationPassages passages={passages} offline={stationOffline} demo={mode === 'demo'}
+      onSelect={plane => choosePlane(plane, false, true)} onClose={togglePassages} />}
+    {station && focus && !passagesOpen && <StationTicket key={focus.revision} plane={selected} route={route} loading={routeLoading || traceLoading}
       duration={duration} automatic={focus.automatic} onClose={returnToRadar}
+      passage={selectedPassage} showPassage={focus.showPassage}
+      onNext={stationOffline || selectedCapture?.pending ? undefined : showNextStationFlight}
       canCapture={canCapture} capture={selectedCapture} onCapture={capturePlane} />}
     {!station && focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
       ref={panel} aria-label="Informations sur les vols">
