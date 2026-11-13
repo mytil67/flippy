@@ -10,7 +10,7 @@ const km = value => value == null ? '—' : `${number.format(value)} km`;
 const count = (value, label) => `${number.format(value)} ${label}${value === 1 ? '' : 's'}`;
 const routeKey = route => `${route.departure}:${route.arrival}`;
 const logoPaths = {
-  Airbus: '5/5d/Airbus_Logo_2017.svg', Boeing: '4/4f/Boeing_full_logo.svg', Embraer: '5/54/Embraer_logo.svg'
+  Airbus: 'airbus.svg', Boeing: 'boeing.svg', Embraer: 'embraer.svg'
 };
 
 function ProfileLogo({ item, CompanyLogo }) {
@@ -18,8 +18,8 @@ function ProfileLogo({ item, CompanyLogo }) {
   if (CompanyLogo) return <CompanyLogo {...item} />;
   const path = logoPaths[item.code];
   return <span className="collection-logo">
-    {path && !failed ? <img src={'https://upload.wikimedia.org/wikipedia/commons/' + path} alt="" loading="lazy"
-      onError={() => setFailed(true)} /> : item.name}
+    {path && !failed ? <img src={'/logos/' + path} alt="" loading="lazy" decoding="async"
+      onError={() => setFailed(true)} /> : <span className="collection-logo-fallback" aria-hidden="true">{item.name.split(' ').slice(0, 3).map(word => word[0]).join('').toUpperCase()}</span>}
   </span>;
 }
 
@@ -147,8 +147,8 @@ export default function CollectionFleet({ items, CompanyLogo }) {
     {visible.length ? <ul className="fleet-directory-list">{visible.map(item => <li key={item.code}>
       <button type="button" onClick={() => setCode(item.code)}>
         <ProfileLogo item={item} CompanyLogo={CompanyLogo} />
-        <span><strong>{item.name}</strong><small>{count(item.count, 'vol')}{item.models && ` · ${count(item.models.length, 'modèle')}`}</small></span>
-        <b>{km(item.route_km)}</b><span aria-hidden="true">›</span>
+        <span className="fleet-directory-copy"><strong>{item.name}</strong><small>{count(item.count, 'vol')}{item.models && ` · ${count(item.models.length, 'modèle')}`}</small></span>
+        {item.route_km != null && <b>{km(item.route_km)}</b>}<span className="fleet-directory-arrow" aria-hidden="true">›</span>
       </button>
     </li>)}</ul> : <p className="fleet-empty">{term ? 'Aucun résultat.' : 'Tes prochaines captures apparaîtront ici.'}</p>}
   </section>;

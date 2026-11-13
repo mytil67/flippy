@@ -76,6 +76,8 @@ Le résultat peut rester incomplet si les sources manquent d’observations ou s
 
 ## Collection et distances
 
+Les logos des constructeurs intégrés au site proviennent de Wikimedia Commons. [Airbus](https://commons.wikimedia.org/wiki/File:Airbus_Logo_2017.svg) · [Boeing](https://commons.wikimedia.org/wiki/File:Boeing_full_logo.svg) · [Embraer](https://commons.wikimedia.org/wiki/File:Embraer_logo.svg)
+
 - Neon Auth permet de retrouver sa collection après connexion depuis un autre navigateur. Les anciennes captures associées au navigateur peuvent être rattachées au compte par `POST /api/collection?access=claim`.
 - PostgreSQL déduplique les captures sur `(collector_id, aircraft, callsign, flight_day)`. `flight_day` correspond au jour UTC de la position. La couleur de la pastille utilise la dernière capture du couple appareil et indicatif.
 - `observed_km` additionne les distances dans les segments réellement disponibles, sans relier les coupures. `route_km` correspond à la distance à vol d’oiseau entre les aéroports retenus. Si les coordonnées ou les preuves nécessaires manquent, `route_km` reste `NULL`.

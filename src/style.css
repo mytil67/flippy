@@ -519,10 +519,9 @@ button.album-map-open { border: 0; min-height: 28px; }
 .ticket-distance { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin: 8px 0; font-size: 12px; }
 .ticket-distance strong { color: #08695f; font-size: 16px; }
 .ticket-distance small { color: #425d60; }
-.collection-logo { display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; justify-self: start; width: 82px; max-width: 100%; height: 31px; overflow: hidden; padding: 4px 7px; border-radius: 6px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 850; }
+.collection-logo { display: flex; align-items: center; justify-content: center; justify-self: start; width: 82px; max-width: 100%; min-width: 0; height: 31px; overflow: hidden; padding: 4px 7px; border: 1px solid #cddcda; border-radius: 6px; background: #fff; color: var(--ink); font-size: 12px; font-weight: 850; }
 .collection-logo img { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; object-fit: contain; }
-.company-art { display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; min-height: 100px; padding: 12px; background: #e7f0ef; }
-.company-art .collection-logo { justify-self: center; width: 154px; height: 54px; padding: 9px 12px; border: 1px solid #cddcda; border-radius: 10px; }
+.collection-logo-fallback { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collection-empty { padding: 18px; border: 1px solid var(--line); border-radius: 18px 18px 18px 6px; background: var(--surface); color: var(--muted); font-size: 14px; }
 .collection-empty button, .collection-empty a { margin-top: 9px; }
 

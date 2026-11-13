@@ -63,10 +63,17 @@ function AircraftArt({ code }) {
 }
 
 function CompanyLogo({ code, iata, flight, name }) {
-  const [failed, setFailed] = useState('');
-  const logo = iata || (/^[A-Z0-9]{2}$/.test(code) ? code : knownAirline((code || '') + '1')?.iata) || flight?.match(/^([A-Z0-9]{2})(?=\d)/)?.[1];
+  const logo = [iata, code, knownAirline((code || '') + '1')?.iata, flight?.match(/^([A-Z0-9]{2})(?=\d)/i)?.[1]]
+    .map(value => value?.trim().toUpperCase()).find(value => /^[A-Z0-9]{2}$/.test(value ?? ''));
+  return <AirlineMark key={logo ?? code} logo={logo} fallback={code || logo || '✈'} name={name} />;
+}
+
+function AirlineMark({ logo, fallback, name }) {
+  const [source, setSource] = useState(0);
+  const url = source === 0 ? `https://pics.avs.io/160/54/${logo}.png` : `https://images.kiwi.com/airlines/64/${logo}.png`;
   return <span className="collection-logo">
-    {/^[A-Z0-9]{2}$/.test(logo) && failed !== logo ? <img src={`https://pics.avs.io/160/54/${logo}.png`} alt={name ? `Logo ${name}` : ''} loading="lazy" onError={() => setFailed(logo)} /> : <span>{code || '✈'}</span>}
+    {logo && source < 2 ? <img key={source} src={url} alt={name ? `Logo ${name}` : ''} loading="lazy"
+      decoding="async" onError={() => setSource(source + 1)} /> : <span className="collection-logo-fallback">{fallback}</span>}
   </span>;
 }
 
