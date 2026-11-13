@@ -59,10 +59,78 @@ test('qualifie la preuve associée au trajet sans confondre annonce et confirmat
 const extractTrace = (...args) => extractFlightTrace(...args).segments;
 import { buildTraceGeometry, nearLongitude } from '../src/traceGeometry.js';
 import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, recordRadarHistory } from '../src/liveTrail.js';
-import { normalizePositions } from '../lib/adsb.js';
+import { flightDetails, normalizePositions } from '../lib/adsb.js';
 import { flightDurationLabel } from '../src/flightDuration.js';
+import { airportByCode } from '../lib/airportLookup.js';
 
 const sample = (seconds, lon, extra) => ({ at: seconds * 1000, lat: 48.5, lon, ...extra });
+
+test('RYR11LC retrouve la rotation hebdomadaire de Dublin à Venise', async context => {
+  const previous = process.env.FLYITALYADSB_API_KEY;
+  process.env.FLYITALYADSB_API_KEY = 'test-route-history';
+  context.after(() => {
+    if (previous === undefined) delete process.env.FLYITALYADSB_API_KEY;
+    else process.env.FLYITALYADSB_API_KEY = previous;
+  });
+  const provider = context.mock.method(globalThis, 'fetch', async url => {
+    if (url !== 'https://api.flyitalyadsb.com/v2/flights/callsign/RYR11LC?days=7') return Response.json({ response: {} });
+    return Response.json({ flights: [{
+      callsign: 'RYR11LC', icao: '4CA893', from: { iata: 'DUB' }, to: { iata: 'VCE' }, day: '2026-11-06'
+    }] });
+  });
+  const from = airportByCode('DUB');
+  const departure = { ...from, airport: from };
+  const plane = {
+    id: '4d2234', callsign: 'RYR11LC', observedAt: 1794554156630,
+    lat: 48.665523, lon: 8.735793, heading: 139.16, speed: 477.1
+  };
+  const details = {
+    ...await flightDetails(plane.callsign, plane.id),
+    number: 'FR11LC', from: airportByCode('MAN'), to: airportByCode('MXP')
+  };
+  assert.ok(provider.mock.calls.some(call => call.arguments[0].endsWith('?days=7')));
+  const route = resolveFlightRoute(details, departure, plane);
+  assert.equal(route.from.code, 'DUB');
+  assert.equal(route.to.code, 'VCE');
+  assert.equal(route.number, undefined);
+  assert.equal(routeStatus(route), 'probable');
+  assert.ok(buildTraceGeometry({ plane }, route).to);
+  assert.equal(resolveFlightRoute(details, departure, { ...plane, heading: 300 }).to, undefined);
+});
+
+test('une rotation observée prime sur la route générique du même indicatif', () => {
+  const plane = { id: '4d2234', lat: 48.665523, lon: 8.735793, observedAt: 1794554156630 };
+  const item = {
+    aircraft: plane.id, firstSeen: 1794549098, lastSeen: 1794558000,
+    day: '2026-11-13', from: airportByCode('DUB'), to: airportByCode('VCE')
+  };
+  const details = { from: item.from, to: airportByCode('MXP'), historicalRoutes: [item] };
+  assert.equal(resolveFlightRoute(details, null, plane).to.code, 'VCE');
+  assert.equal(resolveFlightRoute(details, null, { ...plane, id: '4ca893' }).to.code, 'MXP');
+  const conflicting = { ...details, historicalRoutes: [item, { ...item, to: airportByCode('MXP') }] };
+  assert.equal(resolveFlightRoute(conflicting, null, plane).to, undefined);
+});
+
+test('DAL8861 retrouve Munich uniquement pour la rotation du N516DN', async context => {
+  context.mock.method(globalThis, 'fetch', async () => Response.json({ response: {} }));
+  const plane = {
+    id: 'a67811', callsign: 'DAL8861', observedAt: 1794553873950,
+    lat: 47.888397, lon: 7.300621, heading: 104.14, speed: 523.9
+  };
+  const details = {
+    ...await flightDetails(plane.callsign, plane.id),
+    from: { code: 'EWR', lat: 40.6925, lon: -74.1687 },
+    to: { code: 'CVG', lat: 39.0488, lon: -84.6678 }
+  };
+  const route = resolveFlightRoute(details, null, plane);
+  assert.equal(route.from.code, 'DTW');
+  assert.equal(route.to.code, 'MUC');
+  assert.equal(routeStatus(route), 'announced');
+  assert.ok(buildTraceGeometry({ plane }, route).to);
+  assert.equal(resolveFlightRoute(details, null, { ...plane, id: 'a4b827' }).to, undefined);
+  assert.equal(resolveFlightRoute(details, null, { ...plane, observedAt: details.scheduledRoute.end }).to, undefined);
+  assert.equal(resolveFlightRoute(details, { ...details.from, airport: details.from }, plane).to, undefined);
+});
 
 test('la source configurée renvoie une trace dès le clic, sans position locale antérieure', async context => {
   const key = 'test-flight-history-key';
