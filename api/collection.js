@@ -106,6 +106,25 @@ async function collection(sql, owner) {
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
+async function airportCaptures(sql, owner, code, page) {
+  const pageSize = 10;
+  const [result] = await sql`
+    WITH matches AS (
+      SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
+        airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
+        route_status, reported_departure_code, reported_arrival_code
+      FROM flippy_captures WHERE collector_id = ${owner}
+        AND (departure_code = ${code} OR arrival_code = ${code})
+    ), entries AS (
+      SELECT * FROM matches ORDER BY captured_at DESC, aircraft, callsign
+        LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
+    )
+    SELECT (SELECT count(*)::int FROM matches) AS total,
+      COALESCE(json_agg(entries ORDER BY captured_at DESC, aircraft, callsign), '[]') AS items
+    FROM entries`;
+  return { ...result, pages: Math.ceil(result.total / pageSize) };
+}
+
 function observedDistance(segments) {
   let total = 0;
   for (const segment of segments) {
@@ -168,6 +187,14 @@ export default async function handler(request, response) {
     }
     if (action) return await collectionAccess(sql, identity, action, request, response);
     if (request.method === 'GET') {
+      if (searchParams.has('airport')) {
+        const code = searchParams.get('airport');
+        const page = Number(searchParams.get('page') ?? 1);
+        if (!/^[A-Z0-9]{3,4}$/.test(code) || !Number.isSafeInteger(page) || page < 1 || page > 100000) {
+          return reply(response, 400, { error: 'Aéroport ou page invalide.' });
+        }
+        return reply(response, 200, owner ? await airportCaptures(sql, owner, code, page) : { total: 0, items: [], pages: 0 });
+      }
       const [data, local] = await Promise.all([
         owner ? collection(sql, owner) : empty,
         account && identity ? sql`SELECT count(*)::int AS count FROM flippy_captures WHERE collector_id = ${identity.id}` : []

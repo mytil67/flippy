@@ -413,7 +413,7 @@ export default function Collection() {
               {label}{!['recent', 'album'].includes(key) && <span> {data[key].length}</span>}
             </button>)}
           </nav>
-          {tab === 'album' && <CollectionAlbum data={data} />}
+          {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
           {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
           {tab !== 'album' && items.length > 0 && <div className="collection-filters">
             <input type="search" aria-label="Rechercher dans cette vue" placeholder="Rechercher dans cette vue" value={query} onChange={event => setQuery(event.target.value)} />

@@ -123,8 +123,49 @@ function AirportAtlasFit({ airports }) {
   return null;
 }
 
-function AirportAtlas({ departures, arrivals }) {
+function AirportCaptures({ airport, onOpenCapture }) {
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState('');
+  const [attempt, setAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams({ airport: airport.code, page });
+    fetch('/api/collection?' + params, { signal: controller.signal }).then(async response => {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Captures indisponibles.');
+      if (!controller.signal.aborted) setResult({ ...data, page });
+    }).catch(() => {
+      if (!controller.signal.aborted) setError('Impossible de charger les captures de cet aéroport.');
+    });
+    return () => controller.abort();
+  }, [airport.code, page, attempt]);
+
+  const ready = result?.page === page;
+  return <div className="album-atlas-captures">
+    {error ? <><p role="alert">{error}</p><button type="button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>Réessayer</button></> :
+      !ready ? <p role="status">Chargement des captures…</p> : <>
+        <p role="status">{result.total} capture{result.total === 1 ? '' : 's'} · {airport.name}</p>
+        {result.items.length > 0 && <ul>{result.items.map(item => <li key={`${item.aircraft}:${item.callsign}:${item.captured_at}`}>
+          <button type="button" onClick={() => onOpenCapture(item)}>
+            <strong>{item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase()}</strong>
+            <span>{item.departure_code || '—'} → {item.arrival_code || '—'}</span>
+            <span>{catalogDate(item.captured_at)}</span>
+          </button>
+        </li>)}</ul>}
+      </>}
+    {result?.pages > 1 && <nav className="album-pagination" aria-label="Pages des captures de l’aéroport">
+      <button type="button" disabled={!ready || page <= 1} onClick={() => setPage(page - 1)}>Précédente</button>
+      <span>Page {page} sur {result.pages}</span>
+      <button type="button" disabled={!ready || page >= result.pages} onClick={() => setPage(page + 1)}>Suivante</button>
+    </nav>}
+  </div>;
+}
+
+function AirportAtlas({ departures, arrivals, onOpenCapture }) {
   const airports = useMemo(() => albumAirports(departures, arrivals), [departures, arrivals]);
+  const [selection, setSelection] = useState('');
+  const selected = airports.find(airport => airport.code === selection);
   const markerTone = airport => airport.departures && airport.arrivals ? '#f2c66d' : airport.departures ? '#ff714a' : '#55cdb7';
   return <section className="album-atlas" aria-labelledby="album-atlas-title">
     <header><div><h3 id="album-atlas-title">Mon réseau aérien</h3>
@@ -140,12 +181,21 @@ function AirportAtlas({ departures, arrivals }) {
         <AirportAtlasFit airports={airports} />
         {airports.map(airport => <CircleMarker key={airport.code} center={[airport.lat, airport.lon]}
           radius={Math.min(14, 7 + Math.sqrt(airport.departures + airport.arrivals))}
-          pathOptions={{ color: '#fff', weight: 2, fillColor: markerTone(airport), fillOpacity: .96 }}>
+          pathOptions={{ color: selected?.code === airport.code ? '#102b38' : '#fff', weight: selected?.code === airport.code ? 4 : 2, fillColor: markerTone(airport), fillOpacity: .96 }}
+          eventHandlers={{ click: () => setSelection(airport.code) }}>
           <Tooltip direction="top" offset={[0, -7]}><strong>{airport.code}</strong><span>{airport.name}</span>
             <small>{airport.departures} départ{airport.departures === 1 ? '' : 's'} · {airport.arrivals} arrivée{airport.arrivals === 1 ? '' : 's'}</small></Tooltip>
         </CircleMarker>)}
       </MapContainer>
     </div> : <div className="album-atlas-empty"><p>Capture un trajet identifié pour placer ton premier aéroport.</p></div>}
+    {airports.length > 0 && <div className="album-atlas-selection">
+      <label htmlFor="atlas-airport">Captures par aéroport</label>
+      <select id="atlas-airport" value={selected?.code ?? ''} onChange={event => setSelection(event.target.value)}>
+        <option value="">Choisir un aéroport</option>
+        {airports.map(airport => <option key={airport.code} value={airport.code}>{airport.code} · {airport.name}</option>)}
+      </select>
+      {selected && <AirportCaptures key={selected.code} airport={selected} onOpenCapture={onOpenCapture} />}
+    </div>}
   </section>;
 }
 
@@ -173,7 +223,7 @@ function AlbumCard({ item, kind, owned }) {
   </li>;
 }
 
-export default function CollectionAlbum({ data }) {
+export default function CollectionAlbum({ data, onOpenCapture }) {
   const [kind, setKind] = useState('models');
   const [filter, setFilter] = useState('all');
   const [query, setQuery] = useState('');
@@ -233,7 +283,7 @@ export default function CollectionAlbum({ data }) {
       {categories.map(([key, short, full]) => <button key={key} type="button" aria-pressed={kind === key}
         onClick={() => { setKind(key); setFilter('all'); setQuery(''); }}>{short}<span>{full}</span></button>)}
     </nav>
-    {kind !== 'models' && <AirportAtlas departures={data.departures} arrivals={data.arrivals} />}
+    {kind !== 'models' && <AirportAtlas departures={data.departures} arrivals={data.arrivals} onOpenCapture={onOpenCapture} />}
     <div className="album-toolbar">
       <div role="group" aria-label="Filtrer les fiches">
         {[['all', 'Toutes'], ['owned', 'Découvertes'], ['missing', 'À découvrir']].map(([key, text]) =>
