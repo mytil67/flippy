@@ -1,6 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeAircraftModels } from '../api/catalog.js';
+import { byName } from '../lib/collectionOrder.js';
+
+test('trie les noms accentués et les numéros avant de paginer', () => {
+  const items = [{ name: 'Évreux', code: 'EVX' }, { name: 'A320', code: 'A320' },
+    { name: 'A220', code: 'BCS3' }, { name: 'Bâle', code: 'BSL' }];
+  assert.deepEqual(items.sort(byName).map(item => item.code), ['BCS3', 'A320', 'BSL', 'EVX']);
+});
 
 test('normalise et déduplique le catalogue des modèles par code ICAO', () => {
   const rows = [

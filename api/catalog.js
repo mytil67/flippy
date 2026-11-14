@@ -1,5 +1,6 @@
 import airports from '../lib/airports.json' with { type: 'json' };
 import { reply } from '../lib/adsb.js';
+import { byName } from '../lib/collectionOrder.js';
 
 const PAGE_SIZE = 24;
 let aircraftCache;
@@ -39,7 +40,7 @@ async function aircraftCatalog() {
       method: 'POST', signal: AbortSignal.timeout(10000)
     }).then(response => response.ok ? response.json() : null).catch(() => null)
   ]).then(([rows, stats]) => {
-    return { items: normalizeAircraftModels(rows), updated: stats?.LastUpdated ?? null };
+    return { items: normalizeAircraftModels(rows).sort(byName), updated: stats?.LastUpdated ?? null };
   }).catch(error => {
     aircraftCache = undefined;
     throw error;
@@ -47,7 +48,7 @@ async function aircraftCatalog() {
   return aircraftCache;
 }
 
-const airportCatalog = airports.map(([code, name, lat, lon]) => ({ code, name, lat, lon }));
+const airportCatalog = airports.map(([code, name, lat, lon]) => ({ code, name, lat, lon })).sort(byName);
 const searchable = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 export default async function handler(request, response) {

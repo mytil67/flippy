@@ -288,6 +288,17 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .collection-insights > header h2 { font-size: clamp(20px, 3vw, 28px); letter-spacing: -.035em; }
 .collection-insights > header p { max-width: 62ch; margin-top: 4px; color: var(--muted); font-size: 12px; }
 .collection-insights > header > span { max-width: 190px; color: var(--mint); font-size: 12px; font-weight: 800; text-align: right; }
+.insight-network { padding: 18px clamp(10px, 3vw, 21px); border-bottom: 1px solid var(--line); }
+.insight-network h3 { margin: 0 0 10px; font-size: 17px; }
+.insight-network-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 10px; }
+.insight-network-summary > div { min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.insight-network-summary dt, .insight-network-summary small, .insight-map-note { color: var(--muted); font-size: .78rem; }
+.insight-network-summary dd { margin-block: 4px; color: var(--mint); font-size: clamp(.95rem, 2vw, 1.28rem); font-weight: 750; overflow-wrap: anywhere; }
+.insight-directions { display: block; margin-top: 4px; }
+.insight-map-note { margin-top: 8px; }
+.insight-route-controls { display: flex; flex-wrap: wrap; gap: 6px; }
+.insight-route-controls input { min-height: 42px; max-width: 100%; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: #071923; }
+@media (max-width: 520px) { .insight-network-summary { grid-template-columns: minmax(0, 1fr); } }
 .insight-routes { padding: 18px clamp(10px, 3vw, 21px); border-bottom: 1px solid var(--line); }
 .insight-route-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
 .insight-route-heading h3 { margin: 0; font-size: 17px; }

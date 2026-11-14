@@ -2,6 +2,10 @@ import { Component } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'leaflet/dist/leaflet.css';
 import './style.css';
+// Load both scoped stylesheets before choosing the page module.
+import './collectionFleet.css';
+import './radarStation.css';
+import './collectionPage.css';
 
 const collection = /^\/collection\/?$/.test(window.location.pathname);
 const root = createRoot(document.getElementById('root'));

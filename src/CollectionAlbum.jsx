@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { albumAirports, atlasConnection } from './albumAirports.js';
+import { alphabetical, byName } from '../lib/collectionOrder.js';
 
 const pageSize = 24;
 const number = new Intl.NumberFormat('fr-FR');
@@ -175,12 +176,13 @@ const routeKey = route => `${route.departure}:${route.arrival}`;
 const noRoutes = [];
 
 function AirportAtlas({ departures, arrivals, routes = noRoutes, onOpenCapture }) {
-  const airports = useMemo(() => albumAirports(departures, arrivals), [departures, arrivals]);
+  const airports = useMemo(() => albumAirports(departures, arrivals).sort(byName), [departures, arrivals]);
   const byCode = useMemo(() => new Map(airports.map(airport => [airport.code, airport])), [airports]);
   const [selection, setSelection] = useState('');
   const [selectedRoute, setSelectedRoute] = useState('');
   const selected = byCode.get(selection);
-  const connections = useMemo(() => routes.filter(route => route.departure === selection || route.arrival === selection), [routes, selection]);
+  const connections = useMemo(() => routes.filter(route => route.departure === selection || route.arrival === selection)
+    .sort((a, b) => alphabetical(routeKey(a), routeKey(b))), [routes, selection]);
   const route = connections.find(item => routeKey(item) === selectedRoute);
   // The same line can represent both directions. A select keeps them independently accessible.
   const linkedAirports = new Set(connections.map(item => item.departure === selection ? item.arrival : item.departure));
@@ -277,7 +279,7 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
   const term = normalize(query.trim());
   const localOwned = useMemo(() => ownedItems.filter(item => !term ||
     normalize([item.code, item.name].filter(Boolean).join(' ')).includes(term))
-    .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code, 'fr')), [ownedItems, term]);
+    .sort(byName), [ownedItems, term]);
 
   useEffect(() => {
     setPage(1);

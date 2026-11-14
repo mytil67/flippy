@@ -32,3 +32,18 @@ test('regroupe et compte les niveaux de preuve des trajets', () => {
     { key: 'unknown', count: 1 }
   ]);
 });
+
+test('cumule les deux sens et compte chaque aéroport relié une seule fois', () => {
+  const insights = collectionInsights({ routes: [
+    { departure: 'CDG', arrival: 'NCE', count: 9, route_km: 6246 },
+    { departure: 'NCE', arrival: 'CDG', count: 16, route_km: 11104 },
+    { departure: 'CDG', arrival: 'LYS', count: 5 }
+  ], departures: [{ code: 'CDG', name: 'Paris', lat: 49, lon: 2.5 }] });
+  assert.equal(insights.airportCount, 3);
+  assert.equal(insights.corridors.length, 2);
+  assert.equal(insights.corridors[0].label, 'CDG ↔ NCE');
+  assert.equal(insights.corridors[0].count, 25);
+  assert.equal(insights.routes.find(route => route.label === 'CDG → NCE').route_km, 6246);
+  assert.deepEqual(insights.hubs[0], { code: 'CDG', label: 'CDG', name: 'Paris', count: 2 });
+  assert.equal(insights.airportByCode.get('CDG').lat, 49);
+});

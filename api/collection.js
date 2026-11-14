@@ -56,7 +56,7 @@ async function collection(sql, owner) {
     routes AS (
       SELECT departure_code AS departure, arrival_code AS arrival, count(*)::int AS count,
         count(*) FILTER (WHERE route_status IN ('confirmed', 'probable'))::int AS supported,
-        round(avg(route_km))::int AS distance
+        round(avg(route_km))::int AS distance, sum(route_km) AS route_km
       FROM own WHERE departure_code IS NOT NULL AND arrival_code IS NOT NULL
         AND departure_code <> arrival_code
       GROUP BY departure_code, arrival_code
@@ -129,18 +129,19 @@ async function matchingCaptures(sql, owner, { code, page, departure, arrival, mo
     WITH matches AS (
       SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
         airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
-        route_status, reported_departure_code, reported_arrival_code
+        route_status, reported_departure_code, reported_arrival_code,
+        upper(coalesce(nullif(flight_number, ''), nullif(callsign, ''), nullif(registration, ''), aircraft)) AS sort_name
       FROM flippy_captures WHERE collector_id = ${owner}
         AND (${code}::text IS NULL OR departure_code = ${code} OR arrival_code = ${code})
         AND (${model}::text IS NULL OR model_code = ${model})
         AND (${departure}::text IS NULL OR departure_code = ${departure})
         AND (${arrival}::text IS NULL OR arrival_code = ${arrival})
     ), entries AS (
-      SELECT * FROM matches ORDER BY captured_at DESC, aircraft, callsign
+      SELECT * FROM matches ORDER BY sort_name COLLATE "C", captured_at DESC, aircraft, callsign
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
     )
     SELECT (SELECT count(*)::int FROM matches) AS total,
-      COALESCE(json_agg(entries ORDER BY captured_at DESC, aircraft, callsign), '[]') AS items
+      COALESCE(jsonb_agg(to_jsonb(entries) - 'sort_name' ORDER BY sort_name COLLATE "C", captured_at DESC, aircraft, callsign), '[]') AS items
     FROM entries`;
   return { ...result, pages: Math.ceil(result.total / pageSize) };
 }

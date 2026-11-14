@@ -11,7 +11,6 @@ import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, reco
 import { orderTraffic } from './trafficSort.js';
 import { StationControls, StationPassages, StationTicket } from './RadarStation.jsx';
 import { nextSpotlight, spotlightKey, stationIntervals, upcomingPassages } from './stationTraffic.js';
-import './radarStation.css';
 
 const demo = [
   { id: 'demo-af', callsign: 'AFR1234', registration: 'F-GKXJ', type: 'A320', model: 'Airbus A320', lat: 48.78, lon: 7.98, altitude: 12400, heading: 150, speed: 390,

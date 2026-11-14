@@ -3,12 +3,13 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from
 import { atlasConnection } from './albumAirports.js';
 import { AircraftPhoto } from './CollectionAlbum.jsx';
 import { collectionRequest } from './collectionRequest.js';
-import './collectionFleet.css';
+import { alphabetical, byName } from '../lib/collectionOrder.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const km = value => value == null ? '—' : `${number.format(value)} km`;
 const count = (value, label) => `${number.format(value)} ${label}${value === 1 ? '' : 's'}`;
 const routeKey = route => `${route.departure}:${route.arrival}`;
+const emptyList = [];
 const logoPaths = {
   Airbus: 'airbus.svg', Boeing: 'boeing.svg', Embraer: 'embraer.svg'
 };
@@ -38,7 +39,7 @@ function NetworkFit({ points }) {
   return null;
 }
 
-function RouteNetwork({ routes, selected }) {
+export function RouteNetwork({ routes, selected }) {
   const lines = useMemo(() => {
     const visible = routes.filter(route => route.from && route.to).slice(0, 60);
     if (selected?.from && selected?.to && !visible.includes(selected)) visible.push(selected);
@@ -82,7 +83,9 @@ function Profile({ item, CompanyLogo, onBack }) {
     }).catch(error => { if (!controller.signal.aborted) setResult({ error: error.message }); });
     return () => controller.abort();
   }, [query, attempt]);
-  const selected = result?.routes?.find(route => routeKey(route) === selectedRoute);
+  const routes = useMemo(() => [...(result?.routes ?? emptyList)].sort((a, b) => alphabetical(routeKey(a), routeKey(b))), [result]);
+  const fleet = useMemo(() => [...(result?.fleet ?? emptyList)].sort((a, b) => alphabetical(a.registration, b.registration)), [result]);
+  const selected = routes.find(route => routeKey(route) === selectedRoute);
   return <section className="fleet-profile" aria-labelledby="fleet-title">
     <button className="collection-back fleet-back" type="button" onClick={onBack}>← {CompanyLogo ? 'Compagnies' : 'Constructeurs'}</button>
     <header className="fleet-profile-hero">
@@ -101,7 +104,7 @@ function Profile({ item, CompanyLogo, onBack }) {
         {result.routes.length > 0 && <>
           <div className="fleet-map-caption"><span>Distance entre aéroports, à vol d’oiseau{result.routes.length > 60 ? ' · 60 liaisons principales sur la carte' : ''}</span>
             {selected && <button className="collection-back" type="button" onClick={() => setSelectedRoute('')}>Vue d’ensemble</button>}</div>
-          <ul className="fleet-routes">{result.routes.slice(routePage * 8, (routePage + 1) * 8).map(route => <li key={routeKey(route)}>
+          <ul className="fleet-routes">{routes.slice(routePage * 8, (routePage + 1) * 8).map(route => <li key={routeKey(route)}>
             <button type="button" aria-pressed={selected === route} onClick={() => setSelectedRoute(selected === route ? '' : routeKey(route))}>
               <span><strong>{route.departure} → {route.arrival}</strong><small>{route.from?.name || route.departure} → {route.to?.name || route.arrival}</small></span>
               <span><strong>{km(route.distance)}</strong><small>{count(route.count, 'vol')}{route.count > 1 && route.route_km != null && ` · ${km(route.route_km)} cumulés`}</small></span>
@@ -112,7 +115,7 @@ function Profile({ item, CompanyLogo, onBack }) {
       </section>
       <section className="fleet-section" aria-labelledby="fleet-aircraft">
         <header><h3 id="fleet-aircraft">Appareils capturés</h3><span>{count(new Set(result.fleet.map(plane => plane.code).filter(Boolean)).size, 'modèle')}</span></header>
-        {result.fleet.length ? <ul className="fleet-aircraft">{result.fleet.slice(fleetPage * 6, (fleetPage + 1) * 6).map(plane => <li key={plane.hex}>
+        {result.fleet.length ? <ul className="fleet-aircraft">{fleet.slice(fleetPage * 6, (fleetPage + 1) * 6).map(plane => <li key={plane.hex}>
           <AircraftPhoto item={{ code: plane.code || '', name: plane.name || plane.code }} aircraft={plane.hex} compact />
           <div><strong>{plane.registration}</strong><p>{plane.name || plane.code || 'Modèle inconnu'}</p>
             <small>{count(plane.count, 'vol')}{plane.route_km != null && ` · ${km(plane.route_km)}`}</small></div>
@@ -138,7 +141,7 @@ export default function CollectionFleet({ items, CompanyLogo }) {
   const selected = items.find(item => item.code === code);
   if (selected) return <Profile key={code} item={selected} CompanyLogo={CompanyLogo} onBack={() => setCode('')} />;
   const term = query.trim().toLocaleLowerCase('fr');
-  const visible = items.filter(item => `${item.name} ${item.code}`.toLocaleLowerCase('fr').includes(term));
+  const visible = items.filter(item => `${item.name} ${item.code}`.toLocaleLowerCase('fr').includes(term)).sort(byName);
   const heading = CompanyLogo ? 'Compagnies' : 'Constructeurs';
   return <section className="fleet-directory" aria-labelledby="fleet-directory-title">
     <header><div><h2 id="fleet-directory-title">{heading}</h2><p>Les appareils et les liaisons de tes captures.</p></div>

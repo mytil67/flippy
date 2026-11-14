@@ -1,0 +1,98 @@
+.collection-page {
+  --surface: #fff;
+  --raised: #eef5fa;
+  --line: #cbd9e3;
+  --muted: #4b6274;
+  --ink: #102b41;
+  --mint: #11635c;
+  --amber: #a94e24;
+  color-scheme: light;
+  color: var(--ink);
+  background: #f2f6fa;
+  padding: 24px clamp(16px, 4vw, 64px) 72px;
+}
+
+.collection-page .collection { max-width: 1440px; }
+.collection-topbar { padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+.collection-header { margin: clamp(22px, 3vw, 40px) 0 20px; }
+.collection-header h1 { font-size: clamp(34px, 5vw, 62px); }
+.collection-stats { margin-top: 18px; gap: 14px; }
+.collection-stats div { padding: clamp(14px, 2vw, 26px); border-radius: 14px; }
+.collection-stats dt { font-size: .9rem; }
+.collection-stats dd { font-size: clamp(1.3rem, 3vw, 2.4rem); color: var(--ink); }
+.collection-stats div > span { font-size: .85rem; }
+.collection-layout { gap: 20px; }
+.collection-page .collection-tabs { gap: 7px; margin: 0 0 22px; padding-bottom: 12px; }
+.collection-tabs button[aria-pressed="true"], .collection-page .album-toolbar button[aria-pressed="true"] { background: #dcefe9; border-color: #87b9ae; color: #12554d; }
+.collection-page .collection-back, .collection-page .collection-tabs button { min-height: 44px; font-size: .9rem; }
+.collection-page .collection-access { max-width: 480px; padding: 20px; }
+.collection-page .collection-access button:hover:not(:disabled) { background: #dcefe9; }
+
+.collection-page :is(.collection-insights, .record-flight, .collection-card, .capture-detail, .album-atlas, .fleet-section, .fleet-profile-hero) {
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+  border-radius: 16px;
+  box-shadow: 0 5px 18px #153b5010;
+}
+.collection-page :is(.collection-insights, .record-flight) { margin-top: 0; }
+.collection-page .record-flight { margin-top: 26px; }
+.collection-page :is(.collection-insights > header, .insight-network, .insight-routes, .insight-grid > section, .fleet-section) { padding: clamp(16px, 2vw, 26px); }
+.collection-insights > header { align-items: baseline; }
+.collection-insights > header h2 { font-size: clamp(1.45rem, 2.8vw, 2.25rem); }
+.collection-insights > header > span { max-width: none; font-size: .88rem; }
+.insight-network { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1fr); gap: 14px 20px; }
+.insight-network-map { min-width: 0; }
+.insight-network .fleet-map { height: clamp(330px, 52vh, 570px); }
+.insight-network-summary { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; margin: 0; }
+.insight-network-summary > div { padding: 15px; background: #f5f9fc; }
+.insight-network-summary dd { font-size: clamp(1.1rem, 2vw, 1.5rem); }
+.insight-map-note { grid-column: 1 / -1; margin: 0; font-size: .85rem; }
+.insight-route-heading h3, .insight-grid h3 { font-size: 1.12rem; }
+.insight-route-list { gap: 8px; margin-block: 15px; }
+.insight-route-list > li > button { min-height: 64px; padding: 12px 15px; }
+.insight-route-facts { font-size: .9rem; }
+.insight-bars i { background: #e2edf3; }
+.collection-page .insight-bars li > div span { font-size: .85rem; }
+
+.collection-page :is(.collection-filters input, .collection-filters select, .collection-code input, .insight-route-controls input,
+  .album-toolbar input, .fleet-directory input, .album-atlas-selection select) { background: #fff; color: var(--ink); border-color: var(--line); }
+.collection-page :is(.album-categories, .album-owned-entry, .fleet-directory-list button, .fleet-routes button, .fleet-aircraft > li,
+  .album-atlas-captures button, .album-toolbar button, .album-pagination button, .capture-detail-content header button) {
+  background: var(--surface); color: var(--ink); border-color: var(--line);
+}
+.collection-page :is(.album-owned-row, .fleet-directory-list button, .fleet-routes button, .album-atlas-captures button):hover,
+.collection-page :is(.album-owned-row[aria-expanded="true"], .fleet-routes button[aria-pressed="true"]) { background: var(--raised); }
+.collection-page .album-categories button[aria-pressed="true"] { background: #e4f2ee; color: #12554d; box-shadow: inset 0 -3px var(--mint); }
+.collection-page .album-categories button:hover { background: var(--raised); color: var(--ink); }
+.collection-page :is(.collection-card-meta, .record-flight-log, .record-flight-facts p) { background: #f5f9fc; }
+.collection-page .record-history time { color: var(--ink); }
+.collection-page .record-flight > header p { color: var(--amber); }
+.collection-page .route-status-confirmed { background: #e4f3ec; color: #16584d; }
+.collection-page .route-status-probable { background: #fff1d5; color: #734818; }
+.collection-page .route-status-conflict { background: #fce9e6; color: #8a2d27; }
+.collection-page .capture-entry { min-height: 88px; padding: 14px; }
+.collection-page .capture-entry-flight strong, .collection-page .capture-entry-route strong { font-size: 1.04rem; }
+.collection-page .capture-detail::backdrop { background: #102b4170; }
+.collection-page .collection-logo { color: var(--ink); }
+.collection-page .aircraft-art { color: #9be4d6; }
+.collection-page .album-pagination button:disabled { opacity: .55; }
+
+@media (max-width: 960px) {
+  .insight-network { grid-template-columns: minmax(0, 1fr); }
+  .insight-network-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+  .collection-page { padding-top: 16px; }
+  .collection-header { margin-block: 24px; }
+  .collection-stats { gap: 8px; }
+  .insight-network .fleet-map { height: clamp(250px, 47vh, 430px); }
+}
+
+@media (max-width: 520px) {
+  .insight-network-summary { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .insight-network-summary > div { padding: 10px 13px; }
+  .insight-route-controls { width: 100%; }
+  .insight-route-controls input { width: 100%; }
+}
