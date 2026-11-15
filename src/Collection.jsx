@@ -285,80 +285,6 @@ function RecordFlight({ record }) {
   </section>;
 }
 
-function CollectionInsights({ data, onOpenCapture }) {
-  const insights = useMemo(() => collectionInsights(data), [data]);
-  const [selected, setSelected] = useState('');
-  const [showAll, setShowAll] = useState(false);
-  const [sort, setSort] = useState('name');
-  const [query, setQuery] = useState('');
-  const network = useMemo(() => insights.routes.map(route => ({ ...route,
-    from: insights.airportByCode.get(route.departure), to: insights.airportByCode.get(route.arrival)
-  })), [insights]);
-  const term = searchText(query.trim());
-  const routes = network.filter(route => !term || searchText([route.label, route.from?.name, route.to?.name,
-    ...route.airlines.map(airline => airline.name)].filter(Boolean).join(' ')).includes(term));
-  if (sort === 'distance') routes.sort((a, b) => (b.distance ?? -1) - (a.distance ?? -1));
-  if (sort === 'name') routes.sort((a, b) => alphabetical(a.label, b.label));
-  const busiest = insights.corridors[0];
-  const hub = insights.hubs[0];
-  const mapRoute = network.find(route => route.label === selected);
-  const namedAirport = (code, airports) => airports.find(item => item.code === code)?.name || code;
-  return <div className="collection-dashboard">
-    <section className="collection-insights dashboard-network" aria-labelledby="insights-title">
-      <header><h2 id="insights-title">Réseau des vols capturés</h2>
-        <span>{insights.routeCoverage} % des vols avec une distance de trajet</span></header>
-      {network.length > 0 ? <div className="insight-network">
-      <div id="insight-network-map" className="insight-network-map"><RouteNetwork routes={network} selected={mapRoute} /></div>
-      <dl className="insight-network-summary">
-        <div><dt>Réseau recensé</dt><dd>{number.format(insights.airportCount)} aéroports</dd><small>{number.format(insights.corridors.length)} paires d’aéroports</small></div>
-        <div><dt>Liaison la plus empruntée</dt><dd>{busiest.label}</dd><small>{busiest.count} vols · total des sens recensés</small>
-          {busiest.directions.length > 1 && <small className="insight-directions">{[...busiest.directions].sort((a, b) => alphabetical(a.label, b.label))
-            .map(route => `${route.label} (${route.count})`).join(' · ')}</small>}</div>
-        <div><dt>Aéroport le plus connecté</dt><dd>{hub.code}{hub.name !== hub.code && ` · ${hub.name}`}</dd><small>{hub.count} aéroport{hub.count === 1 ? '' : 's'} relié{hub.count === 1 ? '' : 's'}</small></div>
-      </dl>
-      <p className="insight-map-note">Liaisons entre aéroports{network.length > 60 ? ' · jusqu’à 60 liaisons à l’écran' : ''}. Sélectionne un trajet dans la liste pour le mettre en évidence.</p>
-      </div> : <p className="insight-empty dashboard-network-empty">La carte apparaîtra dès qu’un départ et une arrivée seront identifiés.</p>}
-    </section>
-    <section className="collection-insights insight-routes dashboard-routes" aria-labelledby="routes-title">
-      <div className="insight-route-heading"><h3 id="routes-title">Classement des liaisons</h3>
-        {network.length > 0 && <div className="insight-route-controls">
-          <input type="search" aria-label="Rechercher une liaison" placeholder="Aéroport, ville ou compagnie" value={query}
-            onChange={event => { setQuery(event.target.value); setSelected(''); setShowAll(false); }} />
-          <select aria-label="Trier les liaisons" value={sort} onChange={event => { setSort(event.target.value); setSelected(''); }}>
-          <option value="name">Ordre alphabétique</option><option value="frequency">Les plus fréquentes</option><option value="distance">Les plus longues</option>
-          </select>
-        </div>}</div>
-      {routes.length ? <>
-        <ol className="insight-route-list">
-          {(showAll ? routes : routes.slice(0, 8)).map(route => <li key={route.label}>
-            <button type="button" aria-pressed={selected === route.label} onClick={() => setSelected(value => value === route.label ? '' : route.label)}>
-              <span className="insight-route-name"><strong>{route.label}</strong><small>{namedAirport(route.departure, insights.origins)} → {namedAirport(route.arrival, insights.destinations)}</small></span>
-              <span className="insight-route-facts"><strong>{route.count} vol{route.count === 1 ? '' : 's'} recensé{route.count === 1 ? '' : 's'}</strong>
-                {route.distance != null && <small>{distance(route.distance)} à vol d’oiseau</small>}
-                {route.count > 1 && route.route_km != null && <small>{distance(route.route_km)} cumulés</small>}</span>
-            </button>
-            {selected === route.label && <div className="insight-route-detail">
-              {route.from && route.to && <a className="collection-back" href="#insight-network-map">Voir sur la carte</a>}
-              {route.supported != null && <p>{route.supported} sur {route.count} avec un trajet confirmé ou probable</p>}
-              <h4>Compagnies recensées sur cette liaison</h4>
-              <InsightBars items={[...route.airlines].sort(byName).map(item => ({ ...item, label: item.name, key: item.code }))} suffix="vol" empty="Aucune compagnie identifiée pour cette liaison." />
-              <AirportCaptures airport={{ code: route.departure }} route={route} onOpenCapture={onOpenCapture} />
-            </div>}
-          </li>)}
-        </ol>
-        {routes.length > 8 && <button className="collection-back" type="button" aria-expanded={showAll} onClick={() => {
-          if (showAll && routes.findIndex(route => route.label === selected) >= 8) setSelected('');
-          setShowAll(value => !value);
-        }}>{showAll ? 'Voir les 8 premières' : `Voir les ${insights.routes.length} liaisons`}</button>}
-      </> : <p className="insight-empty">{term ? 'Aucune liaison ne correspond à cette recherche.' : 'Les liaisons apparaîtront dès qu’une capture aura un départ et une arrivée identifiés.'}</p>}
-    </section>
-    <div className="collection-insights insight-grid insight-airport-rankings dashboard-airports">
-      <section><h3>Aéroports de départ les plus fréquents</h3><InsightBars items={insights.origins.slice(0, 5).sort(byName)} suffix="vol" empty="Aucun départ identifié." /></section>
-      <section><h3>Aéroports d’arrivée les plus fréquents</h3><InsightBars items={insights.destinations.slice(0, 5).sort(byName)} suffix="vol" empty="Aucune arrivée identifiée." /></section>
-    </div>
-  </div>;
-}
-
 function CollectionLookup({ count, onFlights }) {
   const [lookup, setLookup] = useState('');
   return <section className="collection-lookup">
@@ -379,52 +305,109 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
   const [page, setPage] = useState(1);
   const [repeated, setRepeated] = useState(false);
   const [selected, setSelected] = useState('');
-  const [networkOpen, setNetworkOpen] = useState(false);
+  const [routeScope, setRouteScope] = useState(null);
   const insights = useMemo(() => collectionInsights(data), [data]);
-  const rows = view === 'flights' ? (data.frequentFlights ?? []).map(item => ({
+  const network = useMemo(() => insights.routes.map(item => {
+    const from = insights.airportByCode.get(item.departure);
+    const to = insights.airportByCode.get(item.arrival);
+    return { ...item, from, to, detail: item.distance, subtitle: `${from?.name || item.departure} → ${to?.name || item.arrival}` };
+  }), [insights]);
+  const rows = useMemo(() => view === 'flights' ? (data.frequentFlights ?? []).map(item => ({
     ...item, label: item.flight, subtitle: item.airline, detail: item.last_seen
   })) : view === 'brands' ? manufacturers.map(item => ({
     ...item, label: item.name, detail: item.models.length
-  })) : insights.routes.map(item => ({ ...item, departureAirport: insights.airportByCode.get(item.departure),
-    arrivalAirport: insights.airportByCode.get(item.arrival), detail: item.distance,
-    subtitle: [insights.airportByCode.get(item.departure)?.name, insights.airportByCode.get(item.arrival)?.name].filter(Boolean).join(' → ') }));
+  })) : network, [view, data.frequentFlights, manufacturers, network]);
   const term = searchText(query.trim());
-  const filtered = rows.filter(row => (!repeated || view !== 'flights' || row.count > 1) &&
-    searchText(`${row.label} ${row.subtitle ?? ''}`).includes(term)).sort((a, b) => {
+  const filtered = useMemo(() => rows.filter(row => (!repeated || view !== 'flights' || row.count > 1) &&
+    (!routeScope || routeScope.directions.some(direction => direction.label === row.label)) &&
+    (!term || searchText([row.label, row.subtitle, ...(row.airlines ?? []).map(airline => airline.name)].filter(Boolean).join(' ')).includes(term))).sort((a, b) => {
     const x = a[sort.key], y = b[sort.key];
     if (x == null || y == null) return (x == null) - (y == null) || alphabetical(a.label, b.label);
     const order = sort.key === 'label' || (view === 'flights' && sort.key === 'detail') ? alphabetical(x, y) : Number(x) - Number(y);
     return (sort.ascending ? order : -order) || alphabetical(a.label, b.label);
-  });
+  }), [rows, repeated, view, routeScope, term, sort]);
   const maximum = filtered.reduce((max, row) => Math.max(max, row.count), 1);
   const pages = Math.max(1, Math.ceil(filtered.length / 10));
-  const active = filtered.find(row => row.label === selected);
+  const active = network.find(row => row.label === selected);
+  const mapRoutes = useMemo(() => {
+    if (view !== 'routes' || (!routeScope && !term)) return network;
+    const labels = new Set(filtered.map(route => route.label));
+    return network.filter(route => labels.has(route.label));
+  }, [view, routeScope, term, network, filtered]);
+  const busiest = insights.corridors[0];
+  const hub = insights.hubs[0];
+  const frequentFlight = data.frequentFlights?.[0];
   const columns = [['label', { flights: 'Vol', brands: 'Constructeur', routes: 'Liaison' }[view]], ['count', 'Captures'],
     ['route_km', 'Km cumulés'], ['detail', { flights: 'Dernière capture', brands: 'Modèles', routes: 'Km par trajet' }[view]]];
   function changePage(next) { setPage(next); setSelected(''); }
+  function changeSort(key, ascending) { setSort({ key, ascending }); changePage(1); }
+  function changeView(next) {
+    setView(next);
+    setSort({ key: 'count', ascending: false });
+    setQuery('');
+    setRouteScope(null);
+    changePage(1);
+  }
+  function selectRoute(route) {
+    if (view !== 'routes') changeView('routes');
+    const index = (view === 'routes' ? filtered : network).findIndex(item => item.label === route.label);
+    if (index >= 0) setPage(Math.floor(index / 10) + 1);
+    setSelected(route.label);
+  }
   return <>
+    {(busiest || frequentFlight?.count > 1 || hub) && <section className="dashboard-summary" aria-labelledby="dashboard-summary-title">
+      <h2 id="dashboard-summary-title">À retenir</h2>
+      <div className="dashboard-summary-grid">
+        {busiest && <a href="#analysis-title" onClick={() => { changeView('routes'); setRouteScope(busiest); }}>
+          <span>Liaison la plus empruntée</span><strong>{busiest.label}</strong>
+          <small>{number.format(busiest.count)} captures{busiest.directions.length > 1 && ' · deux sens réunis'}</small></a>}
+        {frequentFlight?.count > 1 && <a href="#analysis-title" onClick={() => { changeView('flights'); setRepeated(true); }}>
+          <span>Vol le plus fréquent</span><strong>{frequentFlight.flight}</strong>
+          <small>{number.format(frequentFlight.count)} captures{frequentFlight.airline && ` · ${frequentFlight.airline}`}</small></a>}
+        {hub && <a href="#analysis-title" onClick={() => {
+          changeView('routes');
+          setRouteScope({ label: hub.code, directions: network.filter(route => route.departure === hub.code || route.arrival === hub.code) });
+        }}>
+          <span>Aéroport le plus connecté</span><strong>{hub.code}</strong>
+          <small>{hub.count} aéroport{hub.count === 1 ? '' : 's'} relié{hub.count === 1 ? '' : 's'}</small></a>}
+      </div>
+    </section>}
     <section className="collection-analysis" aria-labelledby="analysis-title">
       <header><div><h2 id="analysis-title">Analyse des vols</h2><p>Historique des captures · distances à vol d’oiseau entre aéroports</p></div>
-        <button className="collection-back" type="button" aria-expanded={networkOpen} onClick={() => setNetworkOpen(!networkOpen)}>
-          {networkOpen ? 'Masquer le réseau' : 'Carte du réseau'}</button></header>
+        <div className="analysis-links">
+          <a className="collection-back analysis-map-link" href="#analysis-map-title">Voir la carte</a>
+          {(insights.origins.length > 0 || insights.destinations.length > 0) && <a className="collection-back" href="#dashboard-airports">Aéroports</a>}
+        </div></header>
       <div className="analysis-tools">
         <div className="analysis-views" aria-label="Dimension d’analyse">{[['flights', 'Vols'], ['routes', 'Liaisons'], ['brands', 'Constructeurs']].map(([key, label]) =>
-          <button key={key} type="button" aria-pressed={view === key} onClick={() => { setView(key); setSort({ key: 'count', ascending: false }); setQuery(''); changePage(1); }}>{label}</button>)}</div>
+          <button key={key} type="button" aria-pressed={view === key} onClick={() => changeView(key)}>{label}</button>)}</div>
+        {routeScope && <button className="collection-back" type="button" onClick={() => { setRouteScope(null); changePage(1); }}>{routeScope.label} · Retirer le filtre ×</button>}
         <input type="search" aria-label="Filtrer le tableau d’analyse" placeholder="Filtrer les résultats" value={query} onChange={event => { setQuery(event.target.value); changePage(1); }} />
         {view === 'flights' && <label><input type="checkbox" checked={repeated} onChange={event => { setRepeated(event.target.checked); changePage(1); }} /> Vus plusieurs fois</label>}
+        <label className="analysis-mobile-sort">Trier par
+          <select value={`${sort.key}:${sort.ascending}`} onChange={event => {
+            const [key, direction] = event.target.value.split(':');
+            changeSort(key, direction === 'true');
+          }}>
+            {columns.flatMap(([key, label]) => [false, true].map(ascending =>
+              <option key={`${key}:${ascending}`} value={`${key}:${ascending}`}>{label} {ascending ? '↑' : '↓'}</option>))}
+          </select>
+        </label>
       </div>
-      <div className="analysis-table-wrap" tabIndex={0} role="region" aria-label="Tableau d’analyse des captures">
-        <table className="analysis-table">
-          <thead><tr>{columns.map(([key, label]) => <th key={key} scope="col" aria-sort={sort.key !== key ? undefined : sort.ascending ? 'ascending' : 'descending'}>
-            <button type="button" onClick={() => { setSort({ key, ascending: sort.key === key ? !sort.ascending : key === 'label' }); changePage(1); }}>
+      <div className={'analysis-content' + (view === 'routes' ? ' analysis-content-routes' : '')}>
+      <div className="analysis-results">
+      <div className="analysis-table-wrap">
+        <table className="analysis-table" role="table" aria-label="Tableau d’analyse des captures">
+          <thead role="rowgroup"><tr role="row">{columns.map(([key, label]) => <th key={key} scope="col" role="columnheader" aria-sort={sort.key !== key ? undefined : sort.ascending ? 'ascending' : 'descending'}>
+            <button type="button" onClick={() => changeSort(key, sort.key === key ? !sort.ascending : key === 'label')}>
               {label} <span aria-hidden="true">{sort.key === key ? sort.ascending ? '↑' : '↓' : '↕'}</span></button></th>)}</tr></thead>
-          <tbody>{filtered.slice((page - 1) * 10, page * 10).map(row => <tr key={row.label} className={selected === row.label ? 'is-selected' : undefined}>
-            <th scope="row"><button type="button" aria-expanded={view === 'routes' ? selected === row.label : undefined}
+          <tbody role="rowgroup">{filtered.slice((page - 1) * 10, page * 10).map(row => <tr role="row" key={row.label} className={selected === row.label ? 'is-selected' : undefined}>
+            <th scope="row" role="rowheader"><button type="button" aria-expanded={view === 'routes' ? selected === row.label : undefined}
               onClick={() => view === 'flights' ? onFlight(row.flight) : view === 'brands' ? onManufacturers(row.code) : setSelected(selected === row.label ? '' : row.label)}>
               {row.label}<span aria-hidden="true"> ›</span></button>{row.subtitle && <small>{row.subtitle}</small>}</th>
-            <td><span>{number.format(row.count)}</span><i className="analysis-bar" aria-hidden="true"><i style={{ width: `${row.count / maximum * 100}%` }} /></i></td>
-            <td>{row.route_km == null ? '—' : number.format(row.route_km)}</td>
-            <td>{row.detail == null ? '—' : view === 'flights' ? date.format(new Date(row.detail)) : number.format(row.detail)}</td>
+            <td role="cell"><span className="analysis-cell-label">Captures</span><span>{number.format(row.count)}</span><i className="analysis-bar" aria-hidden="true"><i style={{ width: `${row.count / maximum * 100}%` }} /></i></td>
+            <td role="cell"><span className="analysis-cell-label">Km cumulés</span>{row.route_km == null ? '—' : number.format(row.route_km)}</td>
+            <td role="cell"><span className="analysis-cell-label">{columns[3][1]}</span>{row.detail == null ? '—' : view === 'flights' ? date.format(new Date(row.detail)) : number.format(row.detail)}</td>
           </tr>)}</tbody>
         </table>
       </div>
@@ -432,14 +415,30 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
       <footer><span role="status">{number.format(filtered.length)} résultat{filtered.length === 1 ? '' : 's'}</span>
         {pages > 1 && <nav className="album-pagination" aria-label="Pages du tableau"><button disabled={page <= 1} onClick={() => changePage(page - 1)}>Précédente</button>
           <span>{page} / {pages}</span><button disabled={page >= pages} onClick={() => changePage(page + 1)}>Suivante</button></nav>}</footer>
-      {active && <section className="analysis-detail" aria-label={`Détail ${active.label}`}>
-        <h3>{active.label}</h3>
-        {active.departureAirport && active.arrivalAirport && <RecordRouteMap record={{ from: active.departureAirport, to: active.arrivalAirport }} />}
+      </div>
+      <section className="analysis-map" aria-labelledby="analysis-map-title">
+        <header><h3 id="analysis-map-title">Carte des liaisons</h3>{active && <button className="collection-back" type="button" onClick={() => setSelected('')}>Réinitialiser le zoom</button>}</header>
+        {mapRoutes.length > 0 && <p className="analysis-map-summary">{mapRoutes.length} liaisons · {insights.routeCoverage} % des captures avec une distance</p>}
+        {mapRoutes.length === 0 && network.length > 0 ? <p>Aucune liaison ne correspond aux filtres.</p> :
+          <RouteNetwork routes={mapRoutes} selected={active} onSelect={selectRoute} />}
+        {active ? <p><a href="#analysis-route-detail">{active.label} · Voir les captures</a></p> :
+          mapRoutes.length > 0 && <p>{mapRoutes.length > 60 ? 'Les 60 liaisons les plus fréquentes sont affichées. ' : ''}Touche un tracé pour explorer la liaison.</p>}
+      </section>
+      </div>
+      {active && <section id="analysis-route-detail" className="analysis-detail" aria-label={`Détail ${active.label}`}>
+        <h3>{active.label}</h3><p>{active.subtitle}</p>
+        {active.supported != null && <p>{active.supported} sur {active.count} captures avec un trajet confirmé ou probable</p>}
         {active.airlines.length > 0 && <InsightBars items={[...active.airlines].sort(byName).map(item => ({ ...item, label: item.name, key: item.code }))} suffix="vol" />}
         <AirportCaptures key={active.label} airport={{ code: active.departure }} route={active} onOpenCapture={onOpenCapture} />
       </section>}
     </section>
-    {networkOpen && <CollectionInsights data={data} onOpenCapture={onOpenCapture} />}
+    {(insights.origins.length > 0 || insights.destinations.length > 0) && <section className="collection-insights dashboard-airports" id="dashboard-airports" aria-labelledby="dashboard-airports-title">
+      <header><h2 id="dashboard-airports-title">Aéroports les plus fréquents</h2></header>
+      <div className="insight-grid">
+        <section><h3>Départs</h3><InsightBars items={insights.origins.slice(0, 5)} suffix="vol" empty="Aucun départ identifié." /></section>
+        <section><h3>Arrivées</h3><InsightBars items={insights.destinations.slice(0, 5)} suffix="vol" empty="Aucune arrivée identifiée." /></section>
+      </div>
+    </section>}
   </>;
 }
 

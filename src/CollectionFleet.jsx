@@ -39,7 +39,7 @@ function NetworkFit({ points }) {
   return null;
 }
 
-export function RouteNetwork({ routes, selected }) {
+export function RouteNetwork({ routes, selected, onSelect }) {
   const lines = useMemo(() => {
     const visible = routes.filter(route => route.from && route.to).slice(0, 60);
     if (selected?.from && selected?.to && !visible.includes(selected)) visible.push(selected);
@@ -58,6 +58,7 @@ export function RouteNetwork({ routes, selected }) {
     <NetworkFit points={points} />
     {lines.map(({ route, segments }) => <Polyline key={routeKey(route)}
       positions={route === selected && acrossDateLine ? [points] : segments}
+      eventHandlers={onSelect ? { click: () => onSelect(route) } : undefined}
       pathOptions={{ color: route === selected ? '#bc5718' : '#106c69', weight: route === selected ? 4 : 2, opacity: selected && route !== selected ? .25 : .78 }}>
       <Tooltip>{route.departure} → {route.arrival} · {count(route.count, 'vol')}</Tooltip>
     </Polyline>)}

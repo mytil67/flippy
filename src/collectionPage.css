@@ -78,7 +78,13 @@
 .collection-page .aircraft-art { color: #9be4d6; }
 .collection-page .album-pagination button:disabled { opacity: .55; }
 
-.collection-dashboard { display: grid; gap: 16px; margin-top: 20px; }
+.dashboard-summary { margin-bottom: 18px; }
+.dashboard-summary h2 { margin-bottom: 8px; font-size: 1.15rem; }
+.dashboard-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr)); gap: 10px; }
+.dashboard-summary-grid a { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 12px 15px; border: 1px solid var(--line); border-left: 3px solid #759b96; border-radius: 10px; background: #fff; color: var(--ink); text-decoration: none; }
+.dashboard-summary-grid a:hover { border-color: var(--mint); background: #edf7f3; }
+.dashboard-summary-grid span, .dashboard-summary-grid small { color: var(--muted); font-size: .84rem; }
+.dashboard-summary-grid strong { color: var(--mint); font-size: clamp(1.15rem, 2.2vw, 1.5rem); overflow-wrap: anywhere; }
 .collection-dashboard-page .collection-topbar { padding-bottom: 10px; margin-bottom: 0; }
 .collection-dashboard-page .collection-header { margin-block: 18px 12px; }
 .collection-dashboard-page .collection-header h1 { font-size: clamp(30px, 4vw, 48px); }
@@ -86,19 +92,15 @@
 .collection-dashboard-page .collection-stats div { padding: 12px clamp(12px, 1.6vw, 20px); }
 .collection-dashboard-page .collection-tabs { padding-bottom: 8px; margin-bottom: 14px; }
 .collection-dashboard-page .collection-lookup { padding-block: 10px; }
-.dashboard-network > header { align-items: center; flex-wrap: wrap; gap: 6px 14px; }
-.collection-page .dashboard-network > header { padding-block: 14px; }
-.dashboard-network > header h2 { font-size: clamp(1.25rem, 2vw, 1.7rem); }
-.dashboard-routes, .dashboard-airports { grid-column: 1 / -1; }
-.dashboard-network-empty { padding: 20px; }
+.collection-page .dashboard-airports { margin-top: 20px; }
 .collection-lookup { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #eaf4f2; }
 .collection-lookup h2 { font-size: clamp(1.05rem, 1.65vw, 1.4rem); }
 .collection-lookup form { display: flex; flex: 1 1 330px; min-width: 0; gap: 8px; }
 .collection-lookup input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #94b7b4; border-radius: 10px; color: var(--ink); background: #fff; }
 .collection-analysis { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #153b5014; }
-.collection-analysis > header, .collection-analysis > footer, .analysis-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px clamp(12px, 2vw, 26px); }
+.collection-analysis > header, .analysis-results > footer, .analysis-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px clamp(12px, 2vw, 26px); }
 .collection-analysis > header h2 { font-size: clamp(1.4rem, 2.5vw, 2rem); letter-spacing: -.03em; }
-.collection-analysis > header p, .collection-analysis > footer { color: var(--muted); font-size: .86rem; }
+.collection-analysis > header p, .analysis-results > footer { color: var(--muted); font-size: .86rem; }
 .analysis-tools { justify-content: flex-start; border-block: 1px solid var(--line); background: #f5f8fb; }
 .analysis-views { display: flex; flex-wrap: wrap; gap: 3px; }
 .analysis-views button { min-height: 42px; padding: 7px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font-weight: 700; }
@@ -106,26 +108,58 @@
 .analysis-tools input[type="search"] { min-height: 42px; flex: 1 1 160px; min-width: 0; max-width: 300px; padding: 7px 10px; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; }
 .analysis-tools label { display: flex; align-items: center; min-height: 38px; gap: 6px; font-size: .87rem; }
 .analysis-tools input[type="checkbox"] { accent-color: var(--mint); }
-.analysis-table-wrap { overflow-x: auto; }
-.analysis-table { width: 100%; min-width: 520px; border-collapse: collapse; }
+.analysis-content { display: grid; grid-template-columns: minmax(0, 1fr); }
+.analysis-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.analysis-results, .analysis-map { min-width: 0; }
+.analysis-map { padding: 16px; border-top: 1px solid var(--line); background: #f5f8fb; }
+.analysis-map > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.analysis-map h3 { margin: 0; font-size: 1.1rem; }
+.analysis-map p { margin-top: 8px; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.analysis-map .analysis-map-summary { margin: 0 0 9px; }
+.analysis-map a { color: var(--mint); }
+.analysis-map .fleet-map { height: clamp(260px, 47vh, 430px); }
+.analysis-table { width: 100%; border-collapse: collapse; }
 .analysis-table :is(th, td) { padding: 9px clamp(10px, 2vw, 26px); text-align: right; border-bottom: 1px solid #e2eaf0; font-variant-numeric: tabular-nums; }
 .analysis-table thead { background: #eaf1f7; }
 .analysis-table :is(th, td):first-child { text-align: left; }
 .analysis-table tbody tr:nth-child(even) { background: #f8fafc; }
 .analysis-table tbody tr:hover, .analysis-table tbody tr.is-selected { background: #edf7f3; }
 .analysis-table button { min-height: 34px; padding: 3px 0; border: 0; background: transparent; color: inherit; font-weight: 750; text-align: inherit; }
-.analysis-table thead button { font-size: .84rem; white-space: nowrap; }
+.analysis-table thead button { font-size: .84rem; }
 .analysis-table tbody th button, .analysis-table th[aria-sort] button span { color: var(--mint); }
 .analysis-table tbody small { display: block; color: var(--muted); font-size: .8rem; font-weight: 450; }
 .analysis-table td { white-space: nowrap; }
+.analysis-table tbody th { overflow-wrap: anywhere; }
+.analysis-tools .analysis-mobile-sort, .analysis-cell-label { display: none; }
 .analysis-bar { display: block; width: clamp(26px, 8vw, 100px); height: 5px; margin: 4px 0 0 auto; border-radius: 5px; background: #dce7ef; }
 .analysis-bar > i { display: block; height: 100%; border-radius: inherit; background: #337970; }
-.collection-analysis > footer nav { padding: 0; }
+.analysis-results > footer nav { padding: 0; }
 .analysis-empty, .analysis-detail { padding: 16px clamp(12px, 2vw, 26px); }
 .analysis-detail { display: grid; gap: 12px; border-top: 1px solid var(--line); }
 .analysis-detail h3 { margin: 0; }
-.analysis-detail .record-route-map { min-height: 250px; border-radius: 10px; }
 .capture-pages { padding-top: 16px; }
+
+@media (min-width: 1080px) {
+  .analysis-links .analysis-map-link { display: none; }
+  .analysis-content { grid-template-columns: minmax(0, 1.6fr) minmax(290px, 1fr); }
+  .analysis-map { border-top: 0; border-left: 1px solid var(--line); }
+}
+
+@media (max-width: 650px) {
+  .analysis-content-routes .analysis-map { grid-row: 1; border-top: 0; border-bottom: 1px solid var(--line); }
+  .analysis-tools .analysis-mobile-sort { display: flex; }
+  .analysis-mobile-sort select { min-width: 0; min-height: 42px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; color: inherit; background: #fff; }
+  .analysis-table, .analysis-table tbody { display: block; }
+  .analysis-table thead { display: none; }
+  .analysis-table tbody { padding: 10px; }
+  .analysis-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-bottom: 8px; padding: 8px 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+  .analysis-table tbody :is(th, td) { padding: 0; border: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
+  .analysis-table tbody th { grid-column: 1 / -1; }
+  .analysis-table tbody th button { min-height: 44px; }
+  .analysis-table tbody td:last-child { grid-column: 1 / -1; }
+  .analysis-table .analysis-cell-label { display: block; margin-bottom: 2px; color: var(--muted); font-size: .78rem; }
+  .analysis-bar { margin-left: 0; }
+}
 
 @media (max-width: 720px) {
   .collection-page { padding-top: 16px; }
