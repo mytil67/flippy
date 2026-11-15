@@ -191,7 +191,7 @@ function RecordMapFit({ points }) {
   useEffect(() => {
     const fit = () => {
       map.invalidateSize();
-      map.fitBounds(latLngBounds(points), { padding: [34, 34], maxZoom: 5, animate: false });
+      map.fitBounds(latLngBounds(points), { padding: [64, 52], maxZoom: 5, animate: false });
     };
     const frame = requestAnimationFrame(fit);
     const observer = new ResizeObserver(fit);
@@ -220,10 +220,10 @@ function RecordRouteMap({ record }) {
     <RecordMapFit points={points} />
     <Polyline positions={points} interactive={false} pathOptions={{ color: '#087a70', weight: 4, dashArray: '3 9' }} />
     <CircleMarker center={points[0]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#8fe1d1', fillOpacity: 1 }}>
-      <Tooltip permanent direction="top"><AirportLabel {...record.from} /></Tooltip>
+      <Tooltip className="collection-airport-tooltip" permanent direction="top"><AirportLabel {...record.from} /></Tooltip>
     </CircleMarker>
     <CircleMarker center={points[1]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#ff714a', fillOpacity: 1 }}>
-      <Tooltip permanent direction="bottom"><AirportLabel {...record.to} /></Tooltip>
+      <Tooltip className="collection-airport-tooltip" permanent direction="bottom"><AirportLabel {...record.to} /></Tooltip>
     </CircleMarker>
     {captured && <CircleMarker center={captured} radius={6} pathOptions={{ color: '#fff', weight: 2, fillColor: '#0966b3', fillOpacity: 1 }}>
       <Tooltip direction="top">Position de ta capture</Tooltip>

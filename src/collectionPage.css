@@ -98,7 +98,11 @@
 .capture-route, .capture-route-source { display: grid; min-width: 0; gap: 6px; }
 .capture-route-source { color: var(--muted); }
 .capture-route-source .collection-airport-label strong { color: var(--ink); font: inherit; font-weight: 750; letter-spacing: normal; }
-.collection-page .leaflet-tooltip :is(.collection-airport-pair, .collection-airport-label) { max-width: 230px; white-space: normal; }
+.leaflet-tooltip:is(.collection-airport-tooltip, .collection-route-tooltip) { width: max-content; white-space: normal; }
+.leaflet-tooltip.collection-airport-tooltip { max-width: 128px; }
+.leaflet-tooltip.collection-route-tooltip { max-width: 230px; }
+.leaflet-tooltip .collection-airport-label { overflow-wrap: break-word; }
+.leaflet-tooltip .collection-airport-label strong { white-space: nowrap; }
 
 .distance-leaders {
   margin-bottom: 22px; padding: clamp(14px, 3vw, 30px); border: 1px solid #254760; border-radius: 18px;

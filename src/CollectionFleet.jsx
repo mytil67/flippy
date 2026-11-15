@@ -27,18 +27,18 @@ function ProfileLogo({ item, CompanyLogo }) {
   </span>;
 }
 
-function NetworkFit({ points }) {
+function NetworkFit({ points, showAirportLabels }) {
   const map = useMap();
   useEffect(() => {
     const fit = () => {
       map.invalidateSize();
-      map.fitBounds(points, { padding: [24, 24], maxZoom: 7, animate: false });
+      map.fitBounds(points, { padding: showAirportLabels ? [64, 52] : [24, 24], maxZoom: 7, animate: false });
     };
     const frame = requestAnimationFrame(fit);
     const observer = new ResizeObserver(fit);
     observer.observe(map.getContainer());
     return () => { cancelAnimationFrame(frame); observer.disconnect(); };
-  }, [map, points]);
+  }, [map, points, showAirportLabels]);
   return null;
 }
 
@@ -58,12 +58,12 @@ export function RouteNetwork({ routes, selected, onSelect }) {
   return <MapContainer className="fleet-map" center={points[0]} zoom={4} scrollWheelZoom={false} aria-label="Carte des liaisons capturées">
     <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" updateWhenIdle keepBuffer={2}
       attribution={'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'} />
-    <NetworkFit points={points} />
+    <NetworkFit points={points} showAirportLabels={Boolean(selected?.from && selected?.to)} />
     {lines.map(({ route, segments }) => <Polyline key={routeKey(route)}
       positions={route === selected && acrossDateLine ? [points] : segments}
       eventHandlers={onSelect ? { click: () => onSelect(route) } : undefined}
       pathOptions={{ color: route === selected ? '#bc5718' : '#106c69', weight: route === selected ? 4 : 2, opacity: selected && route !== selected ? .25 : .78 }}>
-      <Tooltip>
+      <Tooltip className="collection-route-tooltip">
         <AirportPair departure={route.departure} arrival={route.arrival} fromName={route.from?.name} toName={route.to?.name} />
         {route.count != null && count(route.count, 'vol')}
       </Tooltip>
@@ -71,7 +71,9 @@ export function RouteNetwork({ routes, selected, onSelect }) {
     {selected?.from && selected?.to && [selected.from, selected.to].map((airport, index) =>
       <CircleMarker key={airport.code} center={points[index]} radius={5}
         pathOptions={{ color: '#fff', fillColor: '#bc5718', fillOpacity: 1, weight: 2 }}>
-        <Tooltip permanent direction={index === 0 ? 'top' : 'bottom'}><AirportLabel {...airport} /></Tooltip>
+        <Tooltip className="collection-airport-tooltip" permanent direction={index === 0 ? 'top' : 'bottom'}>
+          <AirportLabel {...airport} />
+        </Tooltip>
       </CircleMarker>)}
   </MapContainer>;
 }
