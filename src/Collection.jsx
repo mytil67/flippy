@@ -3,7 +3,7 @@ import { collectionRequest } from './collectionRequest.js';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { knownAirline } from '../lib/flight.js';
-import { collectionInsights, routeEvidenceGroup, routeReliability } from './collectionInsights.js';
+import { collectionInsights } from './collectionInsights.js';
 import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 import CollectionFleet, { RouteNetwork } from './CollectionFleet.jsx';
 import { collectionManufacturers } from './collectionManufacturers.js';
@@ -27,15 +27,6 @@ const routeStates = {
 function RouteStatus({ value }) {
   const [label, tone] = routeStates[value] ?? routeStates.unknown;
   return <span className={'route-status route-status-' + tone}>{label}</span>;
-}
-
-function ReliabilityFilter({ items, value, onChange }) {
-  const groups = useMemo(() => routeReliability(items), [items]);
-  if (!items.length) return null;
-  return <select aria-label="Filtrer par fiabilité du trajet" value={value} onChange={event => onChange(event.target.value)}>
-    <option value="all">Tous les trajets</option>
-    {groups.map(group => <option key={group.key} value={group.key}>{routeStates[group.key][0]} ({group.count})</option>)}
-  </select>;
 }
 
 const aircraftPhotos = {
@@ -312,12 +303,11 @@ function CollectionInsights({ data, onOpenCapture }) {
   const hub = insights.hubs[0];
   const mapRoute = network.find(route => route.label === selected);
   const namedAirport = (code, airports) => airports.find(item => item.code === code)?.name || code;
-  return <section className="collection-insights" aria-labelledby="insights-title">
-    <header>
-      <div><h2 id="insights-title">Réseau des vols capturés</h2></div>
-      <span>{insights.routeCoverage} % des vols avec une distance de trajet</span>
-    </header>
-    {network.length > 0 && <div className="insight-network">
+  return <div className="collection-dashboard">
+    <section className="collection-insights dashboard-network" aria-labelledby="insights-title">
+      <header><h2 id="insights-title">Réseau des vols capturés</h2>
+        <span>{insights.routeCoverage} % des vols avec une distance de trajet</span></header>
+      {network.length > 0 ? <div className="insight-network">
       <div id="insight-network-map" className="insight-network-map"><RouteNetwork routes={network} selected={mapRoute} /></div>
       <dl className="insight-network-summary">
         <div><dt>Réseau recensé</dt><dd>{number.format(insights.airportCount)} aéroports</dd><small>{number.format(insights.corridors.length)} paires d’aéroports</small></div>
@@ -327,8 +317,9 @@ function CollectionInsights({ data, onOpenCapture }) {
         <div><dt>Aéroport le plus connecté</dt><dd>{hub.code}{hub.name !== hub.code && ` · ${hub.name}`}</dd><small>{hub.count} aéroport{hub.count === 1 ? '' : 's'} relié{hub.count === 1 ? '' : 's'}</small></div>
       </dl>
       <p className="insight-map-note">Liaisons entre aéroports{network.length > 60 ? ' · jusqu’à 60 liaisons à l’écran' : ''}. Sélectionne un trajet dans la liste pour le mettre en évidence.</p>
-    </div>}
-    <section className="insight-routes" aria-labelledby="routes-title">
+      </div> : <p className="insight-empty dashboard-network-empty">La carte apparaîtra dès qu’un départ et une arrivée seront identifiés.</p>}
+    </section>
+    <section className="collection-insights insight-routes dashboard-routes" aria-labelledby="routes-title">
       <div className="insight-route-heading"><h3 id="routes-title">Classement des liaisons</h3>
         {network.length > 0 && <div className="insight-route-controls">
           <input type="search" aria-label="Rechercher une liaison" placeholder="Aéroport, ville ou compagnie" value={query}
@@ -355,17 +346,101 @@ function CollectionInsights({ data, onOpenCapture }) {
             </div>}
           </li>)}
         </ol>
-        {insights.routes.length > 8 && <button className="collection-back" type="button" aria-expanded={showAll} onClick={() => {
+        {routes.length > 8 && <button className="collection-back" type="button" aria-expanded={showAll} onClick={() => {
           if (showAll && routes.findIndex(route => route.label === selected) >= 8) setSelected('');
           setShowAll(value => !value);
         }}>{showAll ? 'Voir les 8 premières' : `Voir les ${insights.routes.length} liaisons`}</button>}
       </> : <p className="insight-empty">{term ? 'Aucune liaison ne correspond à cette recherche.' : 'Les liaisons apparaîtront dès qu’une capture aura un départ et une arrivée identifiés.'}</p>}
     </section>
-    <div className="insight-grid insight-airport-rankings">
+    <div className="collection-insights insight-grid insight-airport-rankings dashboard-airports">
       <section><h3>Aéroports de départ les plus fréquents</h3><InsightBars items={insights.origins.slice(0, 5).sort(byName)} suffix="vol" empty="Aucun départ identifié." /></section>
       <section><h3>Aéroports d’arrivée les plus fréquents</h3><InsightBars items={insights.destinations.slice(0, 5).sort(byName)} suffix="vol" empty="Aucune arrivée identifiée." /></section>
     </div>
-  </section>;
+  </div>;
+}
+
+function CollectionLookup({ count, onFlights }) {
+  const [lookup, setLookup] = useState('');
+  return <section className="collection-lookup">
+      <h2>Vols déjà vus</h2>
+      <form onSubmit={event => { event.preventDefault(); onFlights(lookup.trim()); }}>
+        <input type="search" aria-label="Rechercher dans toutes les captures" placeholder="N° de vol, immatriculation ou aéroport" value={lookup}
+          onChange={event => setLookup(event.target.value)} />
+        <button type="submit" className="collection-back">Rechercher</button>
+      </form>
+      <button type="button" className="collection-back" onClick={() => onFlights('')}>Voir les {number.format(count)} captures</button>
+    </section>;
+}
+
+function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, onOpenCapture }) {
+  const [view, setView] = useState('flights');
+  const [sort, setSort] = useState({ key: 'count', ascending: false });
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [repeated, setRepeated] = useState(false);
+  const [selected, setSelected] = useState('');
+  const [networkOpen, setNetworkOpen] = useState(false);
+  const insights = useMemo(() => collectionInsights(data), [data]);
+  const rows = view === 'flights' ? (data.frequentFlights ?? []).map(item => ({
+    ...item, label: item.flight, subtitle: item.airline, detail: item.last_seen
+  })) : view === 'brands' ? manufacturers.map(item => ({
+    ...item, label: item.name, detail: item.models.length
+  })) : insights.routes.map(item => ({ ...item, departureAirport: insights.airportByCode.get(item.departure),
+    arrivalAirport: insights.airportByCode.get(item.arrival), detail: item.distance,
+    subtitle: [insights.airportByCode.get(item.departure)?.name, insights.airportByCode.get(item.arrival)?.name].filter(Boolean).join(' → ') }));
+  const term = searchText(query.trim());
+  const filtered = rows.filter(row => (!repeated || view !== 'flights' || row.count > 1) &&
+    searchText(`${row.label} ${row.subtitle ?? ''}`).includes(term)).sort((a, b) => {
+    const x = a[sort.key], y = b[sort.key];
+    if (x == null || y == null) return (x == null) - (y == null) || alphabetical(a.label, b.label);
+    const order = sort.key === 'label' || (view === 'flights' && sort.key === 'detail') ? alphabetical(x, y) : Number(x) - Number(y);
+    return (sort.ascending ? order : -order) || alphabetical(a.label, b.label);
+  });
+  const maximum = filtered.reduce((max, row) => Math.max(max, row.count), 1);
+  const pages = Math.max(1, Math.ceil(filtered.length / 10));
+  const active = filtered.find(row => row.label === selected);
+  const columns = [['label', { flights: 'Vol', brands: 'Constructeur', routes: 'Liaison' }[view]], ['count', 'Captures'],
+    ['route_km', 'Km cumulés'], ['detail', { flights: 'Dernière capture', brands: 'Modèles', routes: 'Km par trajet' }[view]]];
+  function changePage(next) { setPage(next); setSelected(''); }
+  return <>
+    <section className="collection-analysis" aria-labelledby="analysis-title">
+      <header><div><h2 id="analysis-title">Analyse des vols</h2><p>Historique des captures · distances à vol d’oiseau entre aéroports</p></div>
+        <button className="collection-back" type="button" aria-expanded={networkOpen} onClick={() => setNetworkOpen(!networkOpen)}>
+          {networkOpen ? 'Masquer le réseau' : 'Carte du réseau'}</button></header>
+      <div className="analysis-tools">
+        <div className="analysis-views" aria-label="Dimension d’analyse">{[['flights', 'Vols'], ['routes', 'Liaisons'], ['brands', 'Constructeurs']].map(([key, label]) =>
+          <button key={key} type="button" aria-pressed={view === key} onClick={() => { setView(key); setSort({ key: 'count', ascending: false }); setQuery(''); changePage(1); }}>{label}</button>)}</div>
+        <input type="search" aria-label="Filtrer le tableau d’analyse" placeholder="Filtrer les résultats" value={query} onChange={event => { setQuery(event.target.value); changePage(1); }} />
+        {view === 'flights' && <label><input type="checkbox" checked={repeated} onChange={event => { setRepeated(event.target.checked); changePage(1); }} /> Vus plusieurs fois</label>}
+      </div>
+      <div className="analysis-table-wrap" tabIndex={0} role="region" aria-label="Tableau d’analyse des captures">
+        <table className="analysis-table">
+          <thead><tr>{columns.map(([key, label]) => <th key={key} scope="col" aria-sort={sort.key !== key ? undefined : sort.ascending ? 'ascending' : 'descending'}>
+            <button type="button" onClick={() => { setSort({ key, ascending: sort.key === key ? !sort.ascending : key === 'label' }); changePage(1); }}>
+              {label} <span aria-hidden="true">{sort.key === key ? sort.ascending ? '↑' : '↓' : '↕'}</span></button></th>)}</tr></thead>
+          <tbody>{filtered.slice((page - 1) * 10, page * 10).map(row => <tr key={row.label} className={selected === row.label ? 'is-selected' : undefined}>
+            <th scope="row"><button type="button" aria-expanded={view === 'routes' ? selected === row.label : undefined}
+              onClick={() => view === 'flights' ? onFlight(row.flight) : view === 'brands' ? onManufacturers(row.code) : setSelected(selected === row.label ? '' : row.label)}>
+              {row.label}<span aria-hidden="true"> ›</span></button>{row.subtitle && <small>{row.subtitle}</small>}</th>
+            <td><span>{number.format(row.count)}</span><i className="analysis-bar" aria-hidden="true"><i style={{ width: `${row.count / maximum * 100}%` }} /></i></td>
+            <td>{row.route_km == null ? '—' : number.format(row.route_km)}</td>
+            <td>{row.detail == null ? '—' : view === 'flights' ? date.format(new Date(row.detail)) : number.format(row.detail)}</td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+      {!filtered.length && <p className="analysis-empty">Aucun résultat pour ces filtres.</p>}
+      <footer><span role="status">{number.format(filtered.length)} résultat{filtered.length === 1 ? '' : 's'}</span>
+        {pages > 1 && <nav className="album-pagination" aria-label="Pages du tableau"><button disabled={page <= 1} onClick={() => changePage(page - 1)}>Précédente</button>
+          <span>{page} / {pages}</span><button disabled={page >= pages} onClick={() => changePage(page + 1)}>Suivante</button></nav>}</footer>
+      {active && <section className="analysis-detail" aria-label={`Détail ${active.label}`}>
+        <h3>{active.label}</h3>
+        {active.departureAirport && active.arrivalAirport && <RecordRouteMap record={{ from: active.departureAirport, to: active.arrivalAirport }} />}
+        {active.airlines.length > 0 && <InsightBars items={[...active.airlines].sort(byName).map(item => ({ ...item, label: item.name, key: item.code }))} suffix="vol" />}
+        <AirportCaptures key={active.label} airport={{ code: active.departure }} route={active} onOpenCapture={onOpenCapture} />
+      </section>}
+    </section>
+    {networkOpen && <CollectionInsights data={data} onOpenCapture={onOpenCapture} />}
+  </>;
 }
 
 export default function Collection() {
@@ -375,6 +450,10 @@ export default function Collection() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
   const [routeFilter, setRouteFilter] = useState('all');
+  const [capturePage, setCapturePage] = useState(1);
+  const [captureResult, setCaptureResult] = useState(null);
+  const [flightFilter, setFlightFilter] = useState('');
+  const [manufacturer, setManufacturer] = useState('');
   const [accountOpen, setAccountOpen] = useState(window.location.hash === '#compte');
   const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState(null);
@@ -389,17 +468,28 @@ export default function Collection() {
 
   const browsing = ['recent', 'planes', 'models'].includes(tab);
   const manufacturers = useMemo(() => collectionManufacturers(data?.models ?? []), [data?.models]);
-  const items = browsing ? data?.[tab] ?? [] : [];
+  const captureParams = tab === 'recent' && data ? new URLSearchParams({ captures: '', page: capturePage, q: query.trim(),
+    sort, evidence: routeFilter, flight: flightFilter }).toString() : '';
+  useEffect(() => {
+    if (!captureParams) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      collectionRequest('?' + captureParams, { signal: controller.signal }).then(result => {
+        if (!controller.signal.aborted) setCaptureResult({ params: captureParams, ...result });
+      }).catch(error => {
+        if (!controller.signal.aborted) setCaptureResult({ params: captureParams, error: error.message });
+      });
+    }, 180);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [captureParams, attempt]);
+  const capturePageData = captureResult?.params === captureParams ? captureResult : null;
+  const items = tab === 'recent' ? capturePageData?.items ?? [] : browsing ? data?.[tab] ?? [] : [];
   const term = searchText(query.trim());
-  const reliableItems = tab === 'recent' && routeFilter !== 'all'
-    ? items.filter(item => routeEvidenceGroup(item.route_status) === routeFilter) : items;
-  const filtered = term ? reliableItems.filter(item => searchText([
+  const filtered = tab !== 'recent' && term ? items.filter(item => searchText([
     item.name, item.code, item.flight_number, item.callsign, item.registration, item.aircraft,
     item.model, item.model_code, item.airline, item.airline_code, item.airline_iata, item.departure_code, item.arrival_code
-  ].filter(Boolean).join(' ')).includes(term)) : reliableItems;
-  const visible = sort === 'distance' ? [...filtered].sort((a, b) =>
-    (b.route_km ?? -1) - (a.route_km ?? -1)) :
-    sort === 'name' ? [...filtered].sort(tab === 'recent' ? (a, b) => alphabetical(captureName(a), captureName(b)) : byName) : filtered;
+  ].filter(Boolean).join(' ')).includes(term)) : items;
+  const visible = tab !== 'recent' && sort === 'name' ? [...filtered].sort(byName) : filtered;
   const showAccount = Boolean(data && (data.localCount || accountOpen));
 
   function changeTab(next) {
@@ -407,9 +497,12 @@ export default function Collection() {
     setQuery('');
     setSort('name');
     setRouteFilter('all');
+    setCapturePage(1);
+    setFlightFilter('');
+    setManufacturer('');
   }
 
-  return <main className="collection-page">
+  return <main className={'collection-page' + (tab === 'stats' ? ' collection-dashboard-page' : '')}>
     <div className="collection">
       <nav className="collection-topbar" aria-label="Navigation Flippy">
         <span className="collection-brand">flippy<span>.</span></span>
@@ -439,31 +532,47 @@ export default function Collection() {
           </nav>
           {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
           {tab === 'airlines' && <CollectionFleet key="airlines" items={data.airlines ?? []} CompanyLogo={CompanyLogo} />}
-          {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} />}
+          {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} initialCode={manufacturer} />}
           {tab === 'stats' && (data.count ? <>
-            <CollectionInsights data={data} onOpenCapture={setDetail} />
+            <CollectionLookup count={data.count} onFlights={value => { changeTab('recent'); setQuery(value); }} />
+            <CollectionAnalysis data={data} onOpenCapture={setDetail} manufacturers={manufacturers}
+              onManufacturers={code => { changeTab('manufacturers'); setManufacturer(code); }}
+              onFlight={flight => { changeTab('recent'); setFlightFilter(flight); }} />
             {data.record && <RecordFlight record={data.record} />}
           </> : <div className="collection-empty"><p>Tes statistiques apparaîtront après ta première capture.</p>
             <a className="collection-back" href="/">Ouvrir le radar</a></div>)}
-          {browsing && items.length > 0 && <div className="collection-filters">
-            <input type="search" aria-label="Rechercher dans cette vue" placeholder="Rechercher dans cette vue" value={query} onChange={event => setQuery(event.target.value)} />
-            {tab === 'recent' && <ReliabilityFilter items={items} value={routeFilter} onChange={setRouteFilter} />}
-            <select aria-label="Trier les résultats" value={sort} onChange={event => setSort(event.target.value)}>
+          {browsing && (tab === 'recent' || items.length > 0) && <div className="collection-filters">
+            <input type="search" aria-label="Rechercher dans cette vue" placeholder={tab === 'recent' ? 'Chercher dans toutes les captures' : 'Rechercher dans cette vue'} value={query}
+              onChange={event => { setQuery(event.target.value); setCapturePage(1); }} />
+            {tab === 'recent' && <select aria-label="Filtrer par fiabilité du trajet" value={routeFilter} onChange={event => { setRouteFilter(event.target.value); setCapturePage(1); }}>
+              <option value="all">Tous les trajets</option>{Object.entries(routeStates).filter(([key]) => key !== 'announced')
+                .map(([key, [label]]) => <option key={key} value={key}>{label}</option>)}
+            </select>}
+            <select aria-label="Trier les résultats" value={sort} onChange={event => { setSort(event.target.value); setCapturePage(1); }}>
               <option value="name">Ordre alphabétique</option>
               <option value="default">{tab === 'recent' ? 'Plus récentes' : 'Kilomètres des trajets cumulés'}</option>
               {tab === 'recent' && <option value="distance">Plus longs trajets</option>}
             </select>
           </div>}
-          {browsing && (term || routeFilter !== 'all') && <p className="collection-note collection-result" role="status">{visible.length} résultat{visible.length === 1 ? '' : 's'}</p>}
-          {browsing && (visible.length ? <ul className={tab === 'recent' ? 'capture-entries' : 'collection-list'} aria-label={tabs.find(([key]) => key === tab)[1]}>
+          {tab === 'recent' && flightFilter && <button className="collection-back collection-result" type="button" onClick={() => { setFlightFilter(''); setCapturePage(1); }}>{flightFilter} · Retirer le filtre ×</button>}
+          {tab === 'recent' && capturePageData && !capturePageData.error && <p className="collection-note collection-result" role="status">{number.format(capturePageData.total)} capture{capturePageData.total === 1 ? '' : 's'}</p>}
+          {browsing && (tab === 'recent' && !capturePageData ? <p className="collection-empty" role="status">Chargement des captures…</p> :
+            tab === 'recent' && capturePageData.error ? <div className="collection-empty"><p role="alert">{capturePageData.error}</p>
+              <button type="button" onClick={() => { setCaptureResult(null); setAttempt(value => value + 1); }}>Réessayer</button></div> :
+            visible.length ? <ul className={tab === 'recent' ? 'capture-entries' : 'collection-list'} aria-label={tabs.find(([key]) => key === tab)[1]}>
             {visible.map(item => tab === 'recent' ? <CaptureRow key={`${item.aircraft}:${item.callsign}:${item.captured_at}`} item={item} onOpen={setDetail} /> :
               <CollectionCard key={item.code} item={item} tab={tab} />)}
           </ul> : <div className="collection-empty">
-            {term ? <p>Aucun résultat pour cette recherche.</p> : routeFilter !== 'all' ? <p>Aucune capture avec ce niveau de fiabilité.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
+            {term || flightFilter ? <p>Aucun résultat pour cette recherche.</p> : routeFilter !== 'all' ? <p>Aucune capture avec ce niveau de fiabilité.</p> : data.count ? <p>Aucune entrée dans cette catégorie.</p> : <>
               <p>Sélectionne un avion en direct et clique sur « Capturer » pour commencer.</p>
               <a className="collection-back" href="/">Ouvrir le radar</a>
             </>}
           </div>)}
+          {tab === 'recent' && capturePageData?.pages > 1 && <nav className="album-pagination capture-pages" aria-label="Pages des captures">
+            <button type="button" disabled={capturePage <= 1} onClick={() => setCapturePage(capturePage - 1)}>Précédente</button>
+            <span>Page {capturePage} sur {capturePageData.pages}</span>
+            <button type="button" disabled={capturePage >= capturePageData.pages} onClick={() => setCapturePage(capturePage + 1)}>Suivante</button>
+          </nav>}
         </section>
       </div>}
       {detail && <CaptureDetail item={detail} onClose={() => setDetail(null)} />}

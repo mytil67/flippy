@@ -135,8 +135,8 @@ function ProfilePages({ label, page, setPage, total, size }) {
   </nav>;
 }
 
-export default function CollectionFleet({ items, CompanyLogo }) {
-  const [code, setCode] = useState('');
+export default function CollectionFleet({ items, CompanyLogo, initialCode = '' }) {
+  const [code, setCode] = useState(initialCode);
   const [query, setQuery] = useState('');
   const selected = items.find(item => item.code === code);
   if (selected) return <Profile key={code} item={selected} CompanyLogo={CompanyLogo} onBack={() => setCode('')} />;

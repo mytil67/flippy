@@ -41,11 +41,11 @@
 .collection-insights > header { align-items: baseline; }
 .collection-insights > header h2 { font-size: clamp(1.45rem, 2.8vw, 2.25rem); }
 .collection-insights > header > span { max-width: none; font-size: .88rem; }
-.insight-network { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(220px, 1fr); gap: 14px 20px; }
+.insight-network { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; }
 .insight-network-map { min-width: 0; }
-.insight-network .fleet-map { height: clamp(330px, 52vh, 570px); }
-.insight-network-summary { grid-template-columns: minmax(0, 1fr); align-content: start; gap: 12px; margin: 0; }
-.insight-network-summary > div { padding: 15px; background: #f5f9fc; }
+.insight-network .fleet-map { height: clamp(300px, 49vh, 520px); }
+.insight-network-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); align-content: start; gap: 12px; margin: 0; }
+.insight-network-summary > div { padding: 12px; background: #f5f9fc; }
 .insight-network-summary dd { font-size: clamp(1.1rem, 2vw, 1.5rem); }
 .insight-map-note { grid-column: 1 / -1; margin: 0; font-size: .85rem; }
 .insight-route-heading h3, .insight-grid h3 { font-size: 1.12rem; }
@@ -78,10 +78,54 @@
 .collection-page .aircraft-art { color: #9be4d6; }
 .collection-page .album-pagination button:disabled { opacity: .55; }
 
-@media (max-width: 960px) {
-  .insight-network { grid-template-columns: minmax(0, 1fr); }
-  .insight-network-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
+.collection-dashboard { display: grid; gap: 16px; margin-top: 20px; }
+.collection-dashboard-page .collection-topbar { padding-bottom: 10px; margin-bottom: 0; }
+.collection-dashboard-page .collection-header { margin-block: 18px 12px; }
+.collection-dashboard-page .collection-header h1 { font-size: clamp(30px, 4vw, 48px); }
+.collection-dashboard-page .collection-stats { margin-top: 12px; }
+.collection-dashboard-page .collection-stats div { padding: 12px clamp(12px, 1.6vw, 20px); }
+.collection-dashboard-page .collection-tabs { padding-bottom: 8px; margin-bottom: 14px; }
+.collection-dashboard-page .collection-lookup { padding-block: 10px; }
+.dashboard-network > header { align-items: center; flex-wrap: wrap; gap: 6px 14px; }
+.collection-page .dashboard-network > header { padding-block: 14px; }
+.dashboard-network > header h2 { font-size: clamp(1.25rem, 2vw, 1.7rem); }
+.dashboard-routes, .dashboard-airports { grid-column: 1 / -1; }
+.dashboard-network-empty { padding: 20px; }
+.collection-lookup { display: flex; align-items: center; flex-wrap: wrap; gap: 12px 18px; margin-bottom: 16px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #eaf4f2; }
+.collection-lookup h2 { font-size: clamp(1.05rem, 1.65vw, 1.4rem); }
+.collection-lookup form { display: flex; flex: 1 1 330px; min-width: 0; gap: 8px; }
+.collection-lookup input { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid #94b7b4; border-radius: 10px; color: var(--ink); background: #fff; }
+.collection-analysis { overflow: hidden; border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 8px 24px #153b5014; }
+.collection-analysis > header, .collection-analysis > footer, .analysis-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px clamp(12px, 2vw, 26px); }
+.collection-analysis > header h2 { font-size: clamp(1.4rem, 2.5vw, 2rem); letter-spacing: -.03em; }
+.collection-analysis > header p, .collection-analysis > footer { color: var(--muted); font-size: .86rem; }
+.analysis-tools { justify-content: flex-start; border-block: 1px solid var(--line); background: #f5f8fb; }
+.analysis-views { display: flex; flex-wrap: wrap; gap: 3px; }
+.analysis-views button { min-height: 42px; padding: 7px 12px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); font-weight: 700; }
+.analysis-views button[aria-pressed="true"] { background: #dcefe9; border-color: #98bfb6; color: #12554d; }
+.analysis-tools input[type="search"] { min-height: 42px; flex: 1 1 160px; min-width: 0; max-width: 300px; padding: 7px 10px; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; }
+.analysis-tools label { display: flex; align-items: center; min-height: 38px; gap: 6px; font-size: .87rem; }
+.analysis-tools input[type="checkbox"] { accent-color: var(--mint); }
+.analysis-table-wrap { overflow-x: auto; }
+.analysis-table { width: 100%; min-width: 520px; border-collapse: collapse; }
+.analysis-table :is(th, td) { padding: 9px clamp(10px, 2vw, 26px); text-align: right; border-bottom: 1px solid #e2eaf0; font-variant-numeric: tabular-nums; }
+.analysis-table thead { background: #eaf1f7; }
+.analysis-table :is(th, td):first-child { text-align: left; }
+.analysis-table tbody tr:nth-child(even) { background: #f8fafc; }
+.analysis-table tbody tr:hover, .analysis-table tbody tr.is-selected { background: #edf7f3; }
+.analysis-table button { min-height: 34px; padding: 3px 0; border: 0; background: transparent; color: inherit; font-weight: 750; text-align: inherit; }
+.analysis-table thead button { font-size: .84rem; white-space: nowrap; }
+.analysis-table tbody th button, .analysis-table th[aria-sort] button span { color: var(--mint); }
+.analysis-table tbody small { display: block; color: var(--muted); font-size: .8rem; font-weight: 450; }
+.analysis-table td { white-space: nowrap; }
+.analysis-bar { display: block; width: clamp(26px, 8vw, 100px); height: 5px; margin: 4px 0 0 auto; border-radius: 5px; background: #dce7ef; }
+.analysis-bar > i { display: block; height: 100%; border-radius: inherit; background: #337970; }
+.collection-analysis > footer nav { padding: 0; }
+.analysis-empty, .analysis-detail { padding: 16px clamp(12px, 2vw, 26px); }
+.analysis-detail { display: grid; gap: 12px; border-top: 1px solid var(--line); }
+.analysis-detail h3 { margin: 0; }
+.analysis-detail .record-route-map { min-height: 250px; border-radius: 10px; }
+.capture-pages { padding-top: 16px; }
 
 @media (max-width: 720px) {
   .collection-page { padding-top: 16px; }
@@ -91,6 +135,7 @@
 }
 
 @media (max-width: 520px) {
+  .analysis-views button { padding-inline: 8px; }
   .insight-network-summary { grid-template-columns: minmax(0, 1fr); gap: 6px; }
   .insight-network-summary > div { padding: 10px 13px; }
   .insight-route-controls { width: 100%; }

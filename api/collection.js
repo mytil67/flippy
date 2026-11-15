@@ -78,6 +78,12 @@ async function collection(sql, owner) {
         route_status, reported_flight_number, reported_departure_code, reported_arrival_code,
         captured_lat, captured_lon, captured_heading
       FROM own ORDER BY captured_at DESC LIMIT 30
+    ), frequent AS (
+      SELECT upper(coalesce(nullif(flight_number, ''), nullif(callsign, ''))) AS flight,
+        count(*)::int AS count, max(airline) AS airline, sum(route_km) AS route_km,
+        count(route_km)::int AS measured, max(captured_at) AS last_seen
+      FROM own WHERE coalesce(nullif(flight_number, ''), nullif(callsign, '')) IS NOT NULL
+      GROUP BY 1
     )
     SELECT count(*)::int AS count, count(DISTINCT aircraft)::int AS aircraft,
       count(observed_km)::int AS measured, COALESCE(sum(observed_km), 0) AS kilometers,
@@ -108,7 +114,8 @@ async function collection(sql, owner) {
       COALESCE((SELECT json_agg(arrivals ORDER BY count DESC, code) FROM arrivals), '[]') AS arrivals,
       COALESCE((SELECT json_agg(routes ORDER BY count DESC, departure, arrival) FROM routes), '[]') AS routes,
       COALESCE((SELECT json_agg(route_airlines ORDER BY count DESC, name, code) FROM route_airlines), '[]') AS "routeAirlines",
-      COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent
+      COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent,
+      COALESCE((SELECT json_agg(frequent ORDER BY count DESC, flight) FROM frequent), '[]') AS "frequentFlights"
     FROM own`;
   const record = row.record ? {
     ...row.record,
@@ -123,25 +130,33 @@ async function collection(sql, owner) {
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
-async function matchingCaptures(sql, owner, { code, page, departure, arrival, model }) {
+async function matchingCaptures(sql, owner, { code = null, page, departure = null, arrival = null, model = null,
+  query = '', flight = '', evidence = 'all', sort = 'name' }) {
   const pageSize = 10;
   const [result] = await sql`
     WITH matches AS (
       SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
         airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
-        route_status, reported_departure_code, reported_arrival_code,
+        route_status, reported_departure_code, reported_arrival_code, captured_lat, captured_lon, captured_heading,
         upper(coalesce(nullif(flight_number, ''), nullif(callsign, ''), nullif(registration, ''), aircraft)) AS sort_name
       FROM flippy_captures WHERE collector_id = ${owner}
         AND (${code}::text IS NULL OR departure_code = ${code} OR arrival_code = ${code})
         AND (${model}::text IS NULL OR model_code = ${model})
         AND (${departure}::text IS NULL OR departure_code = ${departure})
         AND (${arrival}::text IS NULL OR arrival_code = ${arrival})
+        AND (${flight} = '' OR upper(coalesce(nullif(flight_number, ''), callsign)) = ${flight})
+        AND (${query} = '' OR strpos(lower(concat_ws(' ', flight_number, callsign, registration, aircraft, model, model_code,
+          airline, airline_code, airline_iata, departure_code, arrival_code)), lower(${query})) > 0)
+        AND (${evidence} = 'all' OR CASE WHEN route_status = 'announced' THEN 'unverified'
+          ELSE coalesce(route_status, 'unknown') END = ${evidence})
     ), entries AS (
-      SELECT * FROM matches ORDER BY sort_name COLLATE "C", captured_at DESC, aircraft, callsign
+      SELECT *, row_number() OVER (ORDER BY CASE WHEN ${sort} = 'distance' THEN route_km END DESC NULLS LAST,
+        CASE WHEN ${sort} = 'name' THEN sort_name END COLLATE "C", captured_at DESC, aircraft, callsign) AS position FROM matches
+        ORDER BY position
         LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}
     )
     SELECT (SELECT count(*)::int FROM matches) AS total,
-      COALESCE(jsonb_agg(to_jsonb(entries) - 'sort_name' ORDER BY sort_name COLLATE "C", captured_at DESC, aircraft, callsign), '[]') AS items
+      COALESCE(jsonb_agg(to_jsonb(entries) - 'sort_name' - 'position' ORDER BY position), '[]') AS items
     FROM entries`;
   return { ...result, pages: Math.ceil(result.total / pageSize) };
 }
@@ -235,6 +250,20 @@ export default async function handler(request, response) {
     }
     if (action) return await collectionAccess(sql, identity, action, request, response);
     if (request.method === 'GET') {
+      if (searchParams.has('captures')) {
+        const page = Number(searchParams.get('page') ?? 1);
+        const query = (searchParams.get('q') ?? '').trim().slice(0, 100);
+        const flight = searchParams.get('flight') ?? '';
+        const sort = searchParams.get('sort') ?? 'name';
+        const evidence = searchParams.get('evidence') ?? 'all';
+        if (!Number.isSafeInteger(page) || page < 1 || page > 100000 || !/^[A-Z0-9]{0,10}$/.test(flight) ||
+            !['name', 'default', 'distance'].includes(sort) ||
+            !['all', 'confirmed', 'probable', 'unverified', 'conflict', 'unknown'].includes(evidence)) {
+          return reply(response, 400, { error: 'Filtre de captures invalide.' });
+        }
+        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { page, query, flight, sort, evidence }) :
+          { total: 0, items: [], pages: 0 });
+      }
       if (searchParams.has('fleetAirline') || searchParams.has('fleetModels')) {
         const airline = searchParams.get('fleetAirline');
         const models = searchParams.get('fleetModels')?.split(',') ?? null;
