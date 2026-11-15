@@ -153,7 +153,7 @@ function CaptureDetail({ item, onClose }) {
           <div><dt>Trace observée</dt><dd>{distance(item.observed_km)}</dd></div>
         </dl>
         <div className="capture-route-evidence"><RouteStatus value={item.route_status} />
-          {item.reported_departure_code && item.reported_arrival_code &&
+          {(item.reported_departure_code || item.reported_arrival_code) &&
             <span className="capture-route-source">Source annoncée <AirportPair departure={item.reported_departure_code} arrival={item.reported_arrival_code}
               fromName={item.reported_departure_name} toName={item.reported_arrival_name} /></span>}
         </div>
@@ -181,13 +181,21 @@ function CollectionCard({ item, tab }) {
 
 function CaptureRow({ item, onOpen }) {
   const flight = captureName(item);
+  const hasOtherReportedRoute = (item.reported_departure_code && item.reported_departure_code !== item.departure_code) ||
+    (item.reported_arrival_code && item.reported_arrival_code !== item.arrival_code);
   return <li><button type="button" className="capture-entry" onClick={() => onOpen(item)}>
     <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />
     <span className="capture-entry-flight"><strong>{flight}</strong>
       <span>{[item.airline, item.model || item.model_code].filter(Boolean).join(' · ') || 'Appareil non identifié'}</span></span>
     <span className="capture-entry-route"><AirportPair departure={item.departure_code} arrival={item.arrival_code}
       fromName={item.departure_name} toName={item.arrival_name} />
-      <RouteStatus value={item.route_status} /></span>
+      <RouteStatus value={item.route_status} />
+      {hasOtherReportedRoute && <span className="capture-route-source">
+        <small>Trajet annoncé par la source</small>
+        <AirportPair departure={item.reported_departure_code} arrival={item.reported_arrival_code}
+          fromName={item.reported_departure_name} toName={item.reported_arrival_name} />
+      </span>}
+    </span>
     <span className="capture-entry-distance"><strong>{item.route_km == null ? '—' : distance(item.route_km)}</strong>
       {item.observed_km != null && <span>{distance(item.observed_km)} observés</span>}
       <time dateTime={item.captured_at}>{date.format(new Date(item.captured_at))}</time></span>
@@ -531,6 +539,11 @@ export default function Collection() {
     setDrillPeriod('all');
   }
 
+  function searchCaptures(value) {
+    changeTab('recent');
+    setQuery(value);
+  }
+
   return <main className={'collection-page' + (tab === 'stats' ? ' collection-dashboard-page' : '')}>
     <div className="collection">
       <nav className="collection-topbar" aria-label="Navigation Flippy">
@@ -565,12 +578,12 @@ export default function Collection() {
               {label}
             </button>)}
           </nav>
-          {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
+          {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} onSearchCaptures={searchCaptures} />}
           {tab === 'airlines' && <CollectionFleet key="airlines" items={data.airlines ?? []} CompanyLogo={CompanyLogo} />}
           {drillPeriod !== 'all' && <button className="collection-back collection-result" type="button" onClick={() => { setDrillPeriod('all'); setCapturePage(1); }}>
             {collectionPeriods.find(([key]) => key === drillPeriod)?.[1]} · Retirer le filtre ×</button>}
           {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} initialCode={manufacturer} period={drillPeriod} />}
-          {tab === 'stats' && data.count > 0 && <CollectionLookup count={data.count} onFlights={value => { changeTab('recent'); setQuery(value); }} />}
+          {tab === 'stats' && data.count > 0 && <CollectionLookup count={data.count} onFlights={searchCaptures} />}
           {tab === 'stats' && (dashboardError ? <div className="collection-empty"><p role="alert">{dashboardError}</p>
             <button type="button" onClick={() => { setPeriodResult(null); setPeriodAttempt(value => value + 1); }}>Réessayer</button></div> :
             !dashboard ? <p className="collection-empty" role="status">Chargement de la période…</p> : dashboard.count ? <>

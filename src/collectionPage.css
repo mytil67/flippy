@@ -96,6 +96,7 @@
 :is(.capture-detail-route, .record-flight-route) .collection-airport-label:last-child { text-align: right; }
 :is(.capture-detail-route, .record-flight-route) .collection-airport-separator { align-self: center; font-size: 1.35rem; }
 .capture-route-source { display: grid; gap: 4px; }
+.capture-entry-route .capture-route-source { margin-top: 4px; color: var(--muted); }
 .collection-page .leaflet-tooltip :is(.collection-airport-pair, .collection-airport-label) { max-width: 230px; white-space: normal; }
 
 .dashboard-summary { margin-bottom: 18px; }

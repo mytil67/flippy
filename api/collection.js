@@ -161,7 +161,8 @@ async function matchingCaptures(sql, owner, { code = null, page, departure = nul
         AND (${arrival}::text IS NULL OR arrival_code = ${arrival})
         AND (${flight} = '' OR upper(coalesce(nullif(flight_number, ''), callsign)) = ${flight})
         AND (${query} = '' OR strpos(lower(concat_ws(' ', flight_number, callsign, registration, aircraft, model, model_code,
-          airline, airline_code, airline_iata, departure_code, arrival_code)), lower(${query})) > 0)
+          airline, airline_code, airline_iata, departure_code, arrival_code,
+          reported_flight_number, reported_departure_code, reported_arrival_code)), lower(${query})) > 0)
         AND (${evidence} = 'all' OR CASE WHEN route_status = 'announced' THEN 'unverified'
           ELSE coalesce(route_status, 'unknown') END = ${evidence})
     ), entries AS (

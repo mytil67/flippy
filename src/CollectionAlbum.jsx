@@ -268,7 +268,7 @@ function AlbumCard({ item, kind, owned, preview, onPreview }) {
   </li>;
 }
 
-export default function CollectionAlbum({ data, onOpenCapture }) {
+export default function CollectionAlbum({ data, onOpenCapture, onSearchCaptures }) {
   const [kind, setKind] = useState('models');
   const [filter, setFilter] = useState('owned');
   const [query, setQuery] = useState('');
@@ -317,6 +317,7 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
   const pages = filter === 'owned' ? ownedPages : catalog?.pages ?? 1;
   const total = filter === 'owned' ? localOwned.length : catalog?.total ?? 0;
   const label = categories.find(([key]) => key === kind)?.[2];
+  const airportCode = query.trim().toUpperCase();
 
   return <section className="collection-album" aria-labelledby="album-title">
     <header className="album-heading">
@@ -336,6 +337,11 @@ export default function CollectionAlbum({ data, onOpenCapture }) {
       <input type="search" value={query} onChange={event => { setQuery(event.target.value); setError(''); setSelection(''); }}
         aria-label={`Rechercher dans ${label}`} placeholder={kind === 'models' ? 'Nom ou code du modèle' : 'Nom ou code de l’aéroport'} />
     </div>
+    {kind !== 'models' && /^[A-Z0-9]{3,4}$/.test(airportCode) && <div className="album-results">
+      <button className="collection-back" type="button" onClick={() => onSearchCaptures(airportCode)}>
+        Chercher {airportCode} dans toutes les captures
+      </button>
+    </div>}
     {kind !== 'models' && atlasOpen && <AirportAtlas departures={data.departures} arrivals={data.arrivals} routes={data.routes} onOpenCapture={onOpenCapture} />}
     {!loading && !catalogError && <div className="album-results"><p role="status">{number.format(total)} {filter === 'owned' ? 'dans ta collection' : total === 1 ? 'fiche' : 'fiches'}</p></div>}
     {catalogError ? <div className="collection-empty"><p role="alert">{catalogError}</p></div> : loading ?
