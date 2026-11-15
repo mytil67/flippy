@@ -88,6 +88,9 @@
 .collection-dashboard-page .collection-topbar { padding-bottom: 10px; margin-bottom: 0; }
 .collection-dashboard-page .collection-header { margin-block: 18px 12px; }
 .collection-dashboard-page .collection-header h1 { font-size: clamp(30px, 4vw, 48px); }
+.dashboard-heading { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: 12px; }
+.dashboard-heading label { display: grid; gap: 4px; color: var(--muted); font-size: .84rem; font-weight: 700; }
+.dashboard-heading select { min-height: 44px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: .95rem; }
 .collection-dashboard-page .collection-stats { margin-top: 12px; }
 .collection-dashboard-page .collection-stats div { padding: 12px clamp(12px, 1.6vw, 20px); }
 .collection-dashboard-page .collection-tabs { padding-bottom: 8px; margin-bottom: 14px; }

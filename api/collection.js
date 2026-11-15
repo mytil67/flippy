@@ -6,6 +6,7 @@ import { distanceKm } from '../lib/flight.js';
 import { flightTrace } from '../lib/trace.js';
 import { resolveFlightRoute, routeDistance, routeStatus } from '../lib/routeEvidence.js';
 import { airportByCode } from '../lib/airportLookup.js';
+import { collectionPeriodStart } from '../lib/collectionPeriod.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], routes: [], recent: [] };
 let evidenceSchema;
@@ -26,9 +27,10 @@ function ensureEvidenceSchema(sql) {
   return evidenceSchema;
 }
 
-async function collection(sql, owner) {
+async function collection(sql, owner, since) {
   const [row] = await sql`
-    WITH own AS (SELECT * FROM flippy_captures WHERE collector_id = ${owner}),
+    WITH own AS (SELECT * FROM flippy_captures WHERE collector_id = ${owner}
+      AND (${since}::timestamptz IS NULL OR captured_at >= ${since}::timestamptz)),
     planes AS (
       SELECT aircraft AS code, COALESCE(max(registration), upper(aircraft)) AS name, max(model) AS model, max(model_code) AS model_code,
         count(*)::int AS count, sum(observed_km) AS kilometers, sum(route_km) AS route_km
@@ -131,7 +133,7 @@ async function collection(sql, owner) {
 }
 
 async function matchingCaptures(sql, owner, { code = null, page, departure = null, arrival = null, model = null,
-  query = '', flight = '', evidence = 'all', sort = 'name' }) {
+  query = '', flight = '', evidence = 'all', sort = 'name', since = null }) {
   const pageSize = 10;
   const [result] = await sql`
     WITH matches AS (
@@ -140,6 +142,7 @@ async function matchingCaptures(sql, owner, { code = null, page, departure = nul
         route_status, reported_departure_code, reported_arrival_code, captured_lat, captured_lon, captured_heading,
         upper(coalesce(nullif(flight_number, ''), nullif(callsign, ''), nullif(registration, ''), aircraft)) AS sort_name
       FROM flippy_captures WHERE collector_id = ${owner}
+        AND (${since}::timestamptz IS NULL OR captured_at >= ${since}::timestamptz)
         AND (${code}::text IS NULL OR departure_code = ${code} OR arrival_code = ${code})
         AND (${model}::text IS NULL OR model_code = ${model})
         AND (${departure}::text IS NULL OR departure_code = ${departure})
@@ -161,10 +164,11 @@ async function matchingCaptures(sql, owner, { code = null, page, departure = nul
   return { ...result, pages: Math.ceil(result.total / pageSize) };
 }
 
-async function fleetProfile(sql, owner, airline, models) {
+async function fleetProfile(sql, owner, airline, models, since) {
   const [result] = await sql`
     WITH own AS (
       SELECT * FROM flippy_captures WHERE collector_id = ${owner}
+        AND (${since}::timestamptz IS NULL OR captured_at >= ${since}::timestamptz)
         AND (${airline}::text IS NULL OR airline_code = ${airline})
         AND (${models}::text[] IS NULL OR model_code = ANY(${models}::text[]))
     ), fleet AS (
@@ -216,6 +220,8 @@ export default async function handler(request, response) {
     return reply(response, 200, {});
   }
   const action = request.method === 'POST' && searchParams.get('access');
+  const since = collectionPeriodStart(searchParams.get('period'));
+  if (request.method === 'GET' && since === undefined) return reply(response, 400, { error: 'Période de collection invalide.' });
 
   try {
     const sql = neon(connection);
@@ -261,7 +267,7 @@ export default async function handler(request, response) {
             !['all', 'confirmed', 'probable', 'unverified', 'conflict', 'unknown'].includes(evidence)) {
           return reply(response, 400, { error: 'Filtre de captures invalide.' });
         }
-        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { page, query, flight, sort, evidence }) :
+        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { page, query, flight, sort, evidence, since }) :
           { total: 0, items: [], pages: 0 });
       }
       if (searchParams.has('fleetAirline') || searchParams.has('fleetModels')) {
@@ -271,7 +277,7 @@ export default async function handler(request, response) {
           !models?.length || models.length > 250 || models.some(code => !/^[A-Z0-9]{2,5}$/.test(code))) {
           return reply(response, 400, { error: 'Sélection de flotte invalide.' });
         }
-        return reply(response, 200, owner ? await fleetProfile(sql, owner, airline, models) :
+        return reply(response, 200, owner ? await fleetProfile(sql, owner, airline, models, since) :
           { count: 0, measured: 0, routeKm: null, aircraft: 0, fleet: [], routes: [] });
       }
       if (searchParams.has('radar')) {
@@ -303,10 +309,10 @@ export default async function handler(request, response) {
         }
         if (direction === 'departure') departure = code;
         if (direction === 'arrival') arrival = code;
-        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { code, model, page, departure, arrival }) : { total: 0, items: [], pages: 0 });
+        return reply(response, 200, owner ? await matchingCaptures(sql, owner, { code, model, page, departure, arrival, since }) : { total: 0, items: [], pages: 0 });
       }
       const [data, local] = await Promise.all([
-        owner ? collection(sql, owner) : empty,
+        owner ? collection(sql, owner, since) : empty,
         account && identity ? sql`SELECT count(*)::int AS count FROM flippy_captures WHERE collector_id = ${identity.id}` : []
       ]);
       return reply(response, 200, { ...data, account: account ? { email: account.email } : null, localCount: local[0]?.count ?? 0 });

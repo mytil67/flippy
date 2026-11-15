@@ -1,6 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { collectionInsights, routeEvidenceGroup, routeReliability } from '../src/collectionInsights.js';
+import { collectionPeriodStart } from '../lib/collectionPeriod.js';
+
+test('les périodes courtes couvrent 7 ou 30 jours glissants', () => {
+  const now = Date.parse('2026-11-15T12:00:00Z');
+  assert.equal(collectionPeriodStart('7', now), '2026-11-08T12:00:00.000Z');
+  assert.equal(collectionPeriodStart('30', now), '2026-10-16T12:00:00.000Z');
+  assert.equal(collectionPeriodStart('all', now), null);
+  assert.equal(collectionPeriodStart(null, now), null);
+  assert.equal(collectionPeriodStart('365', now), undefined);
+});
 
 test('classe les liaisons et associe les compagnies au bon sens du trajet', () => {
   const insights = collectionInsights({ count: 40, routeCount: 32,

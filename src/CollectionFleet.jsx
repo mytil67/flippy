@@ -70,13 +70,15 @@ export function RouteNetwork({ routes, selected, onSelect }) {
   </MapContainer>;
 }
 
-function Profile({ item, CompanyLogo, onBack }) {
+function Profile({ item, CompanyLogo, onBack, period }) {
   const [result, setResult] = useState(null);
   const [attempt, setAttempt] = useState(0);
   const [selectedRoute, setSelectedRoute] = useState('');
   const [fleetPage, setFleetPage] = useState(0);
   const [routePage, setRoutePage] = useState(0);
-  const query = new URLSearchParams(CompanyLogo ? { fleetAirline: item.code } : { fleetModels: item.models.map(model => model.code).join(',') }).toString();
+  const params = new URLSearchParams(CompanyLogo ? { fleetAirline: item.code } : { fleetModels: item.models.map(model => model.code).join(',') });
+  if (period !== 'all') params.set('period', period);
+  const query = params.toString();
   useEffect(() => {
     const controller = new AbortController();
     collectionRequest('?' + query, { signal: controller.signal }).then(data => {
@@ -136,11 +138,11 @@ function ProfilePages({ label, page, setPage, total, size }) {
   </nav>;
 }
 
-export default function CollectionFleet({ items, CompanyLogo, initialCode = '' }) {
+export default function CollectionFleet({ items, CompanyLogo, initialCode = '', period = 'all' }) {
   const [code, setCode] = useState(initialCode);
   const [query, setQuery] = useState('');
   const selected = items.find(item => item.code === code);
-  if (selected) return <Profile key={code} item={selected} CompanyLogo={CompanyLogo} onBack={() => setCode('')} />;
+  if (selected) return <Profile key={`${code}:${period}`} item={selected} CompanyLogo={CompanyLogo} period={period} onBack={() => setCode('')} />;
   const term = query.trim().toLocaleLowerCase('fr');
   const visible = items.filter(item => `${item.name} ${item.code}`.toLocaleLowerCase('fr').includes(term)).sort(byName);
   const heading = CompanyLogo ? 'Compagnies' : 'Constructeurs';

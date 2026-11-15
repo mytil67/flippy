@@ -126,7 +126,7 @@ function AirportAtlasFit({ airports }) {
   return null;
 }
 
-export function AirportCaptures({ airport, route, model, direction, onOpenCapture }) {
+export function AirportCaptures({ airport, route, model, direction, onOpenCapture, period = 'all' }) {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
@@ -134,6 +134,7 @@ export function AirportCaptures({ airport, route, model, direction, onOpenCaptur
   useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams({ page });
+    if (period !== 'all') params.set('period', period);
     if (model) params.set('model', model.code);
     else params.set('airport', airport.code);
     if (direction) params.set('direction', direction);
@@ -149,7 +150,7 @@ export function AirportCaptures({ airport, route, model, direction, onOpenCaptur
       if (!controller.signal.aborted) setError('Impossible de charger ces captures.');
     });
     return () => controller.abort();
-  }, [airport?.code, model?.code, direction, route, page, attempt]);
+  }, [airport?.code, model?.code, direction, route, page, attempt, period]);
 
   const ready = result?.page === page;
   return <div className="album-atlas-captures">

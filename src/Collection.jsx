@@ -8,6 +8,7 @@ import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 import CollectionFleet, { RouteNetwork } from './CollectionFleet.jsx';
 import { collectionManufacturers } from './collectionManufacturers.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
+import { collectionPeriods } from '../lib/collectionPeriod.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
@@ -298,7 +299,7 @@ function CollectionLookup({ count, onFlights }) {
     </section>;
 }
 
-function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, onOpenCapture }) {
+function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, onOpenCapture, period }) {
   const [view, setView] = useState('flights');
   const [sort, setSort] = useState({ key: 'count', ascending: false });
   const [query, setQuery] = useState('');
@@ -429,7 +430,7 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
         <h3>{active.label}</h3><p>{active.subtitle}</p>
         {active.supported != null && <p>{active.supported} sur {active.count} captures avec un trajet confirmé ou probable</p>}
         {active.airlines.length > 0 && <InsightBars items={[...active.airlines].sort(byName).map(item => ({ ...item, label: item.name, key: item.code }))} suffix="vol" />}
-        <AirportCaptures key={active.label} airport={{ code: active.departure }} route={active} onOpenCapture={onOpenCapture} />
+        <AirportCaptures key={active.label} airport={{ code: active.departure }} route={active} period={period} onOpenCapture={onOpenCapture} />
       </section>}
     </section>
     {(insights.origins.length > 0 || insights.destinations.length > 0) && <section className="collection-insights dashboard-airports" id="dashboard-airports" aria-labelledby="dashboard-airports-title">
@@ -456,6 +457,10 @@ export default function Collection() {
   const [accountOpen, setAccountOpen] = useState(window.location.hash === '#compte');
   const [attempt, setAttempt] = useState(0);
   const [detail, setDetail] = useState(null);
+  const [period, setPeriod] = useState('all');
+  const [periodResult, setPeriodResult] = useState(null);
+  const [periodAttempt, setPeriodAttempt] = useState(0);
+  const [drillPeriod, setDrillPeriod] = useState('all');
   useEffect(() => {
     document.title = 'Ma collection — Flippy';
     const controller = new AbortController();
@@ -465,10 +470,25 @@ export default function Collection() {
     return () => controller.abort();
   }, [attempt]);
 
+  useEffect(() => {
+    if (period === 'all' || !data) return;
+    const controller = new AbortController();
+    collectionRequest(`?period=${period}`, { signal: controller.signal }).then(result => {
+      if (!controller.signal.aborted) setPeriodResult({ period, data: result });
+    }).catch(error => {
+      if (!controller.signal.aborted) setPeriodResult({ period, error: error.message });
+    });
+    return () => controller.abort();
+  }, [period, periodAttempt, data]);
+
   const browsing = ['recent', 'planes', 'models'].includes(tab);
-  const manufacturers = useMemo(() => collectionManufacturers(data?.models ?? []), [data?.models]);
+  const dashboard = period === 'all' ? data : periodResult?.period === period ? periodResult.data : null;
+  const dashboardError = period !== 'all' && periodResult?.period === period ? periodResult.error : '';
+  const metrics = tab === 'stats' ? dashboard : data;
+  const modelData = tab === 'stats' || (tab === 'manufacturers' && drillPeriod !== 'all') ? dashboard : data;
+  const manufacturers = useMemo(() => collectionManufacturers(modelData?.models ?? []), [modelData?.models]);
   const captureParams = tab === 'recent' && data ? new URLSearchParams({ captures: '', page: capturePage, q: query.trim(),
-    sort, evidence: routeFilter, flight: flightFilter }).toString() : '';
+    sort, evidence: routeFilter, flight: flightFilter, period: drillPeriod }).toString() : '';
   useEffect(() => {
     if (!captureParams) return;
     const controller = new AbortController();
@@ -499,6 +519,7 @@ export default function Collection() {
     setCapturePage(1);
     setFlightFilter('');
     setManufacturer('');
+    setDrillPeriod('all');
   }
 
   return <main className={'collection-page' + (tab === 'stats' ? ' collection-dashboard-page' : '')}>
@@ -512,17 +533,23 @@ export default function Collection() {
         </div>
       </nav>
       <header className="collection-header">
-        <h1>Mon carnet de vol</h1>
-        {data && <dl className="collection-stats">
-            <div><dt>Captures</dt><dd>{number.format(data.count)}</dd><span>{number.format(data.aircraft)} avion{data.aircraft === 1 ? '' : 's'} distinct{data.aircraft === 1 ? '' : 's'}</span></div>
-            <div><dt>Distance des trajets</dt><dd>{data.routeKilometers == null ? '—' : distance(data.routeKilometers)}</dd><span>Entre aéroports, à vol d’oiseau</span></div>
-            <div><dt>Distance observée</dt><dd>{distance(data.kilometers)}</dd><span>Positions reçues par ADS-B</span></div>
+        <div className="dashboard-heading"><h1>Mon carnet de vol</h1>
+          {data && tab === 'stats' && <label>Période d’analyse
+            <select value={period} onChange={event => { setPeriod(event.target.value); setPeriodResult(null); }}>
+              {collectionPeriods.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </label>}
+        </div>
+        {metrics && <dl className="collection-stats">
+            <div><dt>Captures</dt><dd>{number.format(metrics.count)}</dd><span>{number.format(metrics.aircraft)} avion{metrics.aircraft === 1 ? '' : 's'} distinct{metrics.aircraft === 1 ? '' : 's'}</span></div>
+            <div><dt>Distance des trajets</dt><dd>{metrics.routeKilometers == null ? '—' : distance(metrics.routeKilometers)}</dd><span>Entre aéroports, à vol d’oiseau</span></div>
+            <div><dt>Distance observée</dt><dd>{distance(metrics.kilometers)}</dd><span>Positions reçues par ADS-B</span></div>
         </dl>}
       </header>
       {error ? <div className="collection-empty"><p role="alert">{error}</p><button type="button" onClick={() => {
         setError(''); setAttempt(value => value + 1);
       }}>Réessayer</button></div> : !data ? <p role="status" className="collection-empty">Chargement…</p> : <div className="collection-layout">
-        {showAccount && <Account data={data} onUpdate={next => { setData(next); changeTab('stats'); }} />}
+        {showAccount && <Account data={data} onUpdate={next => { setPeriod('all'); setPeriodResult(null); setCaptureResult(null); setData(next); changeTab('stats'); }} />}
         <section className="collection-board" aria-label="Carnet de vol">
           <nav className="collection-tabs" aria-label="Vues de la collection">
             {tabs.map(([key, label]) => <button key={key} type="button" aria-pressed={tab === key} onClick={() => { if (key !== tab) changeTab(key); }}>
@@ -531,14 +558,18 @@ export default function Collection() {
           </nav>
           {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} />}
           {tab === 'airlines' && <CollectionFleet key="airlines" items={data.airlines ?? []} CompanyLogo={CompanyLogo} />}
-          {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} initialCode={manufacturer} />}
-          {tab === 'stats' && (data.count ? <>
-            <CollectionLookup count={data.count} onFlights={value => { changeTab('recent'); setQuery(value); }} />
-            <CollectionAnalysis data={data} onOpenCapture={setDetail} manufacturers={manufacturers}
-              onManufacturers={code => { changeTab('manufacturers'); setManufacturer(code); }}
-              onFlight={flight => { changeTab('recent'); setFlightFilter(flight); }} />
-            {data.record && <RecordFlight record={data.record} />}
-          </> : <div className="collection-empty"><p>Tes statistiques apparaîtront après ta première capture.</p>
+          {drillPeriod !== 'all' && <button className="collection-back collection-result" type="button" onClick={() => { setDrillPeriod('all'); setCapturePage(1); }}>
+            {collectionPeriods.find(([key]) => key === drillPeriod)?.[1]} · Retirer le filtre ×</button>}
+          {tab === 'manufacturers' && <CollectionFleet key="manufacturers" items={manufacturers} initialCode={manufacturer} period={drillPeriod} />}
+          {tab === 'stats' && data.count > 0 && <CollectionLookup count={data.count} onFlights={value => { changeTab('recent'); setQuery(value); }} />}
+          {tab === 'stats' && (dashboardError ? <div className="collection-empty"><p role="alert">{dashboardError}</p>
+            <button type="button" onClick={() => { setPeriodResult(null); setPeriodAttempt(value => value + 1); }}>Réessayer</button></div> :
+            !dashboard ? <p className="collection-empty" role="status">Chargement de la période…</p> : dashboard.count ? <>
+            <CollectionAnalysis key={period} data={dashboard} period={period} onOpenCapture={setDetail} manufacturers={manufacturers}
+              onManufacturers={code => { changeTab('manufacturers'); setDrillPeriod(period); setManufacturer(code); }}
+              onFlight={flight => { changeTab('recent'); setDrillPeriod(period); setFlightFilter(flight); }} />
+            {dashboard.record && <RecordFlight record={dashboard.record} />}
+          </> : <div className="collection-empty"><p>{period === 'all' ? 'Tes statistiques apparaîtront après ta première capture.' : 'Aucune capture sur cette période.'}</p>
             <a className="collection-back" href="/">Ouvrir le radar</a></div>)}
           {browsing && (tab === 'recent' || items.length > 0) && <div className="collection-filters">
             <input type="search" aria-label="Rechercher dans cette vue" placeholder={tab === 'recent' ? 'Chercher dans toutes les captures' : 'Rechercher dans cette vue'} value={query}
