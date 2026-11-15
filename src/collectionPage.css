@@ -78,6 +78,26 @@
 .collection-page .aircraft-art { color: #9be4d6; }
 .collection-page .album-pagination button:disabled { opacity: .55; }
 
+.collection-airport-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: start;
+  gap: clamp(5px, 1.5vw, 16px);
+  min-width: 0;
+}
+.collection-airport-label { display: grid; min-width: 0; gap: 2px; overflow-wrap: anywhere; }
+.collection-page .collection-airport-label small {
+  display: block; margin: 0; color: var(--muted); font-size: .78rem; font-weight: 500; line-height: 1.35;
+}
+.collection-airport-separator { color: var(--mint); font-weight: 700; }
+.analysis-detail .collection-airport-pair { max-width: 360px; }
+.analysis-route-button { width: 100%; }
+.album-atlas-captures li button > .collection-airport-pair { flex: 1 1 185px; max-width: 340px; }
+:is(.capture-detail-route, .record-flight-route) .collection-airport-label:last-child { text-align: right; }
+:is(.capture-detail-route, .record-flight-route) .collection-airport-separator { align-self: center; font-size: 1.35rem; }
+.capture-route-source { display: grid; gap: 4px; }
+.collection-page .leaflet-tooltip :is(.collection-airport-pair, .collection-airport-label) { max-width: 230px; white-space: normal; }
+
 .dashboard-summary { margin-bottom: 18px; }
 .dashboard-summary h2 { margin-bottom: 8px; font-size: 1.15rem; }
 .dashboard-summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 215px), 1fr)); gap: 10px; }

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { albumAirports, atlasConnection } from './albumAirports.js';
+import { AirportPair } from './CollectionAirports.jsx';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 
 const pageSize = 24;
@@ -156,12 +157,14 @@ export function AirportCaptures({ airport, route, model, direction, onOpenCaptur
   return <div className="album-atlas-captures">
     {error ? <><p role="alert">{error}</p><button type="button" onClick={() => { setError(''); setAttempt(value => value + 1); }}>Réessayer</button></> :
       !ready ? <p role="status">Chargement des captures…</p> : <>
-        <p role="status">{result.total} capture{result.total === 1 ? '' : 's'} · {route ? `${route.departure} → ${route.arrival}` : model?.name || airport?.name || model?.code || airport?.code}</p>
+        <p role="status">{result.total} capture{result.total === 1 ? '' : 's'}
+          {!route && ` · ${model?.name || airport?.name || model?.code || airport?.code}`}</p>
         {result.items.length > 0 && <ul>{result.items.map(item => <li key={`${item.aircraft}:${item.callsign}:${item.captured_at}`}>
           <button type="button" onClick={() => onOpenCapture(item)}>
             <strong>{item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase()}</strong>
-            <span>{item.departure_code || '—'} → {item.arrival_code || '—'}</span>
-            <span>{catalogDate(item.captured_at)}</span>
+            <AirportPair departure={item.departure_code} arrival={item.arrival_code}
+              fromName={item.departure_name} toName={item.arrival_name} />
+            <time dateTime={item.captured_at}>{catalogDate(item.captured_at)}</time>
           </button>
         </li>)}</ul>}
       </>}
@@ -232,7 +235,7 @@ function AirportAtlas({ departures, arrivals, routes = noRoutes, onOpenCapture }
         <select id="atlas-route" value={route ? routeKey(route) : ''} onChange={event => setSelectedRoute(event.target.value)}>
           <option value="">Toutes les liaisons</option>
           {connections.map(item => <option key={routeKey(item)} value={routeKey(item)}>
-            {item.departure} → {item.arrival} · {item.count} capture{item.count === 1 ? '' : 's'}
+            {item.departure} · {byCode.get(item.departure)?.name || 'Nom indisponible'} → {item.arrival} · {byCode.get(item.arrival)?.name || 'Nom indisponible'} · {item.count} vol{item.count === 1 ? '' : 's'}
           </option>)}
         </select>
       </>}
@@ -245,7 +248,7 @@ function AlbumCard({ item, kind, owned, preview, onPreview }) {
   const airport = kind !== 'models';
   const [accent, tint] = cardPalettes[hash(item.code) % cardPalettes.length];
   const family = airport ? (kind === 'departures' ? 'Point de départ' : 'Destination') : modelFamily(item);
-  const details = airport ? 'Code aéroport · ICAO' :
+  const details = airport ? 'Code aéroport · IATA' :
     [item.manufacturer, item.engineCount && item.engineType ? `${item.engineCount} × ${item.engineType}` : item.engineType].filter(Boolean).join(' · ') || 'Référence ICAO';
   return <li className={'album-card ' + (owned ? 'is-unlocked' : 'is-locked')}>
     <article style={{ '--card-accent': accent, '--card-tint': tint }} aria-label={`${item.code}, ${item.name}, ${owned ? 'découvert' : 'à découvrir'}`}>

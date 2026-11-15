@@ -6,6 +6,7 @@ import { knownAirline } from '../lib/flight.js';
 import { collectionInsights } from './collectionInsights.js';
 import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 import CollectionFleet, { RouteNetwork } from './CollectionFleet.jsx';
+import { AirportLabel, AirportPair } from './CollectionAirports.jsx';
 import { collectionManufacturers } from './collectionManufacturers.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 import { collectionPeriods } from '../lib/collectionPeriod.js';
@@ -141,10 +142,9 @@ function CaptureDetail({ item, onClose }) {
           </div>
           <button type="button" aria-label="Fermer la fiche" onClick={() => dialog.current?.close()}>×</button>
         </header>
-        {item.departure_code && item.arrival_code ? <div className="capture-detail-route">
-          <div><small>Départ</small><strong>{item.departure_code}</strong></div>
-          <span aria-hidden="true">✈</span>
-          <div><small>Arrivée</small><strong>{item.arrival_code}</strong></div>
+        {item.departure_code || item.arrival_code ? <div className="capture-detail-route">
+          <AirportPair departure={item.departure_code} arrival={item.arrival_code}
+            fromName={item.departure_name} toName={item.arrival_name} labeled />
         </div> : <p className="capture-detail-unknown">Le trajet n’a pas pu être identifié pour cette capture.</p>}
         <dl className="capture-detail-facts">
           <div><dt>Appareil</dt><dd>{item.model || item.model_code || '—'}</dd></div>
@@ -152,10 +152,11 @@ function CaptureDetail({ item, onClose }) {
           <div><dt>Trajet complet</dt><dd>{distance(item.route_km)}</dd></div>
           <div><dt>Trace observée</dt><dd>{distance(item.observed_km)}</dd></div>
         </dl>
-        <p className="capture-route-evidence"><RouteStatus value={item.route_status} />
+        <div className="capture-route-evidence"><RouteStatus value={item.route_status} />
           {item.reported_departure_code && item.reported_arrival_code &&
-            <span>Source annoncée : {item.reported_departure_code} → {item.reported_arrival_code}</span>}
-        </p>
+            <span className="capture-route-source">Source annoncée <AirportPair departure={item.reported_departure_code} arrival={item.reported_arrival_code}
+              fromName={item.reported_departure_name} toName={item.reported_arrival_name} /></span>}
+        </div>
         {item.airline && <div className="capture-detail-airline"><CompanyLogo code={item.airline_code} iata={item.airline_iata}
           flight={item.flight_number} name={item.airline} /><span>{item.airline}</span></div>}
       </div>
@@ -184,7 +185,8 @@ function CaptureRow({ item, onOpen }) {
     <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />
     <span className="capture-entry-flight"><strong>{flight}</strong>
       <span>{[item.airline, item.model || item.model_code].filter(Boolean).join(' · ') || 'Appareil non identifié'}</span></span>
-    <span className="capture-entry-route"><strong>{item.departure_code || item.arrival_code ? `${item.departure_code || '—'} → ${item.arrival_code || '—'}` : 'Itinéraire inconnu'}</strong>
+    <span className="capture-entry-route"><AirportPair departure={item.departure_code} arrival={item.arrival_code}
+      fromName={item.departure_name} toName={item.arrival_name} />
       <RouteStatus value={item.route_status} /></span>
     <span className="capture-entry-distance"><strong>{item.route_km == null ? '—' : distance(item.route_km)}</strong>
       {item.observed_km != null && <span>{distance(item.observed_km)} observés</span>}
@@ -193,11 +195,12 @@ function CaptureRow({ item, onOpen }) {
   </button></li>;
 }
 
-function InsightBars({ items, empty, suffix = 'capture' }) {
+function InsightBars({ items, empty, suffix = 'capture', showAirportNames = false }) {
   const maximum = Math.max(1, ...items.map(item => item.count));
   return items.length ? <ol className="insight-bars">
-    {items.map(item => <li key={item.key ?? item.label} aria-label={`${item.label}, ${item.count} ${suffix}${item.count === 1 ? '' : 's'}`}>
-      <div><strong>{item.label}</strong><span>{item.count}</span></div>
+    {items.map(item => <li key={item.key ?? item.label} aria-label={[item.label, showAirportNames && item.name !== item.code && item.name,
+      `${item.count} ${suffix}${item.count === 1 ? '' : 's'}`].filter(Boolean).join(', ')}>
+      <div>{showAirportNames ? <AirportLabel code={item.code} name={item.name} /> : <strong>{item.label}</strong>}<span>{item.count}</span></div>
       <i aria-hidden="true"><span style={{ width: `${item.count / maximum * 100}%` }} /></i>
     </li>)}
   </ol> : <p className="insight-empty">{empty}</p>;
@@ -237,10 +240,10 @@ function RecordRouteMap({ record }) {
     <RecordMapFit points={points} />
     <Polyline positions={points} interactive={false} pathOptions={{ color: '#087a70', weight: 4, dashArray: '3 9' }} />
     <CircleMarker center={points[0]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#8fe1d1', fillOpacity: 1 }}>
-      <Tooltip permanent direction="top"><strong>{record.from.code}</strong> · {record.from.name}</Tooltip>
+      <Tooltip permanent direction="top"><AirportLabel {...record.from} /></Tooltip>
     </CircleMarker>
     <CircleMarker center={points[1]} radius={7} pathOptions={{ color: '#09232d', weight: 2, fillColor: '#ff714a', fillOpacity: 1 }}>
-      <Tooltip permanent direction="bottom"><strong>{record.to.code}</strong> · {record.to.name}</Tooltip>
+      <Tooltip permanent direction="bottom"><AirportLabel {...record.to} /></Tooltip>
     </CircleMarker>
     {captured && <CircleMarker center={captured} radius={6} pathOptions={{ color: '#fff', weight: 2, fillColor: '#0966b3', fillOpacity: 1 }}>
       <Tooltip direction="top">Position de ta capture</Tooltip>
@@ -258,9 +261,8 @@ function RecordFlight({ record }) {
       <div className="record-flight-distance"><strong>{distance(record.kilometers)}</strong><RouteStatus value={record.route_status} /></div>
     </header>
     <div className="record-flight-route">
-      <div><small>Départ</small><strong>{record.departure_code}</strong><span>{record.from?.name || 'Aéroport identifié'}</span></div>
-      <b aria-hidden="true">✈</b>
-      <div><small>Arrivée</small><strong>{record.arrival_code}</strong><span>{record.to?.name || 'Aéroport identifié'}</span></div>
+      <AirportPair departure={record.departure_code} arrival={record.arrival_code}
+        fromName={record.from?.name} toName={record.to?.name} labeled />
     </div>
     <div className="record-flight-layout">
       <RecordRouteMap record={record} />
@@ -275,8 +277,8 @@ function RecordFlight({ record }) {
         <ol className="record-history">
           {(record.history ?? []).map((capture, index) => <li key={`${capture.captured_at}:${index}`}>
             <time dateTime={capture.captured_at}>{date.format(new Date(capture.captured_at))}</time>
-            <span>{capture.departure_code && capture.arrival_code
-              ? `${capture.departure_code} → ${capture.arrival_code}` : 'Trajet non identifié'}</span>
+            <span className="record-history-route"><AirportPair departure={capture.departure_code} arrival={capture.arrival_code}
+              fromName={capture.departure_name} toName={capture.arrival_name} /></span>
             {capture.route_km != null && <strong>{distance(capture.route_km)}</strong>}
           </li>)}
         </ol>
@@ -336,6 +338,7 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
     return network.filter(route => labels.has(route.label));
   }, [view, routeScope, term, network, filtered]);
   const busiest = insights.corridors[0];
+  const [busiestFrom, busiestTo] = busiest?.airports ?? [];
   const hub = insights.hubs[0];
   const frequentFlight = data.frequentFlights?.[0];
   const columns = [['label', { flights: 'Vol', brands: 'Constructeur', routes: 'Liaison' }[view]], ['count', 'Captures'],
@@ -360,7 +363,9 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
       <h2 id="dashboard-summary-title">À retenir</h2>
       <div className="dashboard-summary-grid">
         {busiest && <a href="#analysis-title" onClick={() => { changeView('routes'); setRouteScope(busiest); }}>
-          <span>Liaison la plus empruntée</span><strong>{busiest.label}</strong>
+          <span>Liaison la plus empruntée</span>
+          <AirportPair departure={busiestFrom} arrival={busiestTo} separator="↔"
+            fromName={insights.airportByCode.get(busiestFrom)?.name} toName={insights.airportByCode.get(busiestTo)?.name} />
           <small>{number.format(busiest.count)} captures{busiest.directions.length > 1 && ' · deux sens réunis'}</small></a>}
         {frequentFlight?.count > 1 && <a href="#analysis-title" onClick={() => { changeView('flights'); setRepeated(true); }}>
           <span>Vol le plus fréquent</span><strong>{frequentFlight.flight}</strong>
@@ -369,7 +374,7 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
           changeView('routes');
           setRouteScope({ label: hub.code, directions: network.filter(route => route.departure === hub.code || route.arrival === hub.code) });
         }}>
-          <span>Aéroport le plus connecté</span><strong>{hub.code}</strong>
+          <span>Aéroport le plus connecté</span><AirportLabel code={hub.code} name={hub.name} />
           <small>{hub.count} aéroport{hub.count === 1 ? '' : 's'} relié{hub.count === 1 ? '' : 's'}</small></a>}
       </div>
     </section>}
@@ -403,9 +408,12 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
             <button type="button" onClick={() => changeSort(key, sort.key === key ? !sort.ascending : key === 'label')}>
               {label} <span aria-hidden="true">{sort.key === key ? sort.ascending ? '↑' : '↓' : '↕'}</span></button></th>)}</tr></thead>
           <tbody role="rowgroup">{filtered.slice((page - 1) * 10, page * 10).map(row => <tr role="row" key={row.label} className={selected === row.label ? 'is-selected' : undefined}>
-            <th scope="row" role="rowheader"><button type="button" aria-expanded={view === 'routes' ? selected === row.label : undefined}
+            <th scope="row" role="rowheader"><button type="button" className={view === 'routes' ? 'analysis-route-button' : undefined}
+              aria-expanded={view === 'routes' ? selected === row.label : undefined}
               onClick={() => view === 'flights' ? onFlight(row.flight) : view === 'brands' ? onManufacturers(row.code) : setSelected(selected === row.label ? '' : row.label)}>
-              {row.label}<span aria-hidden="true"> ›</span></button>{row.subtitle && <small>{row.subtitle}</small>}</th>
+              {view === 'routes' ? <AirportPair departure={row.departure} arrival={row.arrival}
+                fromName={row.from?.name} toName={row.to?.name} /> : <>{row.label}<span aria-hidden="true"> ›</span></>}
+            </button>{view !== 'routes' && row.subtitle && <small>{row.subtitle}</small>}</th>
             <td role="cell"><span className="analysis-cell-label">Captures</span><span>{number.format(row.count)}</span><i className="analysis-bar" aria-hidden="true"><i style={{ width: `${row.count / maximum * 100}%` }} /></i></td>
             <td role="cell"><span className="analysis-cell-label">Km cumulés</span>{row.route_km == null ? '—' : number.format(row.route_km)}</td>
             <td role="cell"><span className="analysis-cell-label">{columns[3][1]}</span>{row.detail == null ? '—' : view === 'flights' ? date.format(new Date(row.detail)) : number.format(row.detail)}</td>
@@ -422,12 +430,13 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
         {mapRoutes.length > 0 && <p className="analysis-map-summary">{mapRoutes.length} liaisons · {insights.routeCoverage} % des captures avec une distance</p>}
         {mapRoutes.length === 0 && network.length > 0 ? <p>Aucune liaison ne correspond aux filtres.</p> :
           <RouteNetwork routes={mapRoutes} selected={active} onSelect={selectRoute} />}
-        {active ? <p><a href="#analysis-route-detail">{active.label} · Voir les captures</a></p> :
+        {active ? <p><a href="#analysis-route-detail">Voir les captures de cette liaison</a></p> :
           mapRoutes.length > 0 && <p>{mapRoutes.length > 60 ? 'Les 60 liaisons les plus fréquentes sont affichées. ' : ''}Touche un tracé pour explorer la liaison.</p>}
       </section>
       </div>
       {active && <section id="analysis-route-detail" className="analysis-detail" aria-label={`Détail ${active.label}`}>
-        <h3>{active.label}</h3><p>{active.subtitle}</p>
+        <h3><AirportPair departure={active.departure} arrival={active.arrival}
+          fromName={active.from?.name} toName={active.to?.name} /></h3>
         {active.supported != null && <p>{active.supported} sur {active.count} captures avec un trajet confirmé ou probable</p>}
         {active.airlines.length > 0 && <InsightBars items={[...active.airlines].sort(byName).map(item => ({ ...item, label: item.name, key: item.code }))} suffix="vol" />}
         <AirportCaptures key={active.label} airport={{ code: active.departure }} route={active} period={period} onOpenCapture={onOpenCapture} />
@@ -436,8 +445,8 @@ function CollectionAnalysis({ data, manufacturers, onManufacturers, onFlight, on
     {(insights.origins.length > 0 || insights.destinations.length > 0) && <section className="collection-insights dashboard-airports" id="dashboard-airports" aria-labelledby="dashboard-airports-title">
       <header><h2 id="dashboard-airports-title">Aéroports les plus fréquents</h2></header>
       <div className="insight-grid">
-        <section><h3>Départs</h3><InsightBars items={insights.origins.slice(0, 5)} suffix="vol" empty="Aucun départ identifié." /></section>
-        <section><h3>Arrivées</h3><InsightBars items={insights.destinations.slice(0, 5)} suffix="vol" empty="Aucune arrivée identifiée." /></section>
+        <section><h3>Départs</h3><InsightBars items={insights.origins.slice(0, 5)} suffix="vol" empty="Aucun départ identifié." showAirportNames /></section>
+        <section><h3>Arrivées</h3><InsightBars items={insights.destinations.slice(0, 5)} suffix="vol" empty="Aucune arrivée identifiée." showAirportNames /></section>
       </div>
     </section>}
   </>;

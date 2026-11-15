@@ -31,7 +31,7 @@ export function collectionInsights(data) {
     const { departure, arrival } = route;
     const pair = [departure, arrival].sort();
     const key = pair.join(' ↔ ');
-    const corridor = corridors.get(key) ?? { label: key, count: 0, directions: [] };
+    const corridor = corridors.get(key) ?? { label: key, airports: pair, count: 0, directions: [] };
     corridor.count += route.count;
     corridor.directions.push(route);
     corridors.set(key, corridor);

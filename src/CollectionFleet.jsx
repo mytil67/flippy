@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { atlasConnection } from './albumAirports.js';
 import { AircraftPhoto } from './CollectionAlbum.jsx';
+import { AirportLabel, AirportPair } from './CollectionAirports.jsx';
 import { collectionRequest } from './collectionRequest.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 
@@ -62,12 +63,15 @@ export function RouteNetwork({ routes, selected, onSelect }) {
       positions={route === selected && acrossDateLine ? [points] : segments}
       eventHandlers={onSelect ? { click: () => onSelect(route) } : undefined}
       pathOptions={{ color: route === selected ? '#bc5718' : '#106c69', weight: route === selected ? 4 : 2, opacity: selected && route !== selected ? .25 : .78 }}>
-      <Tooltip>{route.departure} → {route.arrival} · {count(route.count, 'vol')}</Tooltip>
+      <Tooltip>
+        <AirportPair departure={route.departure} arrival={route.arrival} fromName={route.from?.name} toName={route.to?.name} />
+        {count(route.count, 'vol')}
+      </Tooltip>
     </Polyline>)}
     {selected?.from && selected?.to && [selected.from, selected.to].map((airport, index) =>
       <CircleMarker key={airport.code} center={points[index]} radius={5}
         pathOptions={{ color: '#fff', fillColor: '#bc5718', fillOpacity: 1, weight: 2 }}>
-        <Tooltip permanent direction={index === 0 ? 'top' : 'bottom'}>{airport.code} · {airport.name}</Tooltip>
+        <Tooltip permanent direction={index === 0 ? 'top' : 'bottom'}><AirportLabel {...airport} /></Tooltip>
       </CircleMarker>)}
   </MapContainer>;
 }
@@ -105,7 +109,7 @@ function FleetDetails({ query, showRoutes, showAircraft, interactive }) {
           <ul className="fleet-routes">{routes.slice(routePage * 8, (routePage + 1) * 8).map(route => <li key={routeKey(route)}>
             <button type="button" aria-pressed={selected === route} disabled={!route.from || !route.to}
               onClick={() => setSelectedRoute(selected === route ? '' : routeKey(route))}>
-              <span><strong>{route.departure} → {route.arrival}</strong><small>{route.from?.name || route.departure} → {route.to?.name || route.arrival}</small></span>
+              <AirportPair departure={route.departure} arrival={route.arrival} fromName={route.from?.name} toName={route.to?.name} />
               <span><strong>{km(route.distance)}</strong><small>{count(route.count, 'vol')}{route.count > 1 && route.route_km != null && ` · ${km(route.route_km)} cumulés`}</small></span>
             </button>
           </li>)}</ul>

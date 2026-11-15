@@ -27,6 +27,16 @@ function ensureEvidenceSchema(sql) {
   return evidenceSchema;
 }
 
+function captureAirportNames(item) {
+  return {
+    ...item,
+    departure_name: airportByCode(item.departure_code)?.name,
+    arrival_name: airportByCode(item.arrival_code)?.name,
+    reported_departure_name: airportByCode(item.reported_departure_code)?.name,
+    reported_arrival_name: airportByCode(item.reported_arrival_code)?.name
+  };
+}
+
 async function collection(sql, owner, since) {
   const [row] = await sql`
     WITH own AS (SELECT * FROM flippy_captures WHERE collector_id = ${owner}
@@ -122,13 +132,15 @@ async function collection(sql, owner, since) {
   const record = row.record ? {
     ...row.record,
     from: airportByCode(row.record.departure_code),
-    to: airportByCode(row.record.arrival_code)
+    to: airportByCode(row.record.arrival_code),
+    history: row.record.history.map(captureAirportNames)
   } : null;
   const airportEntries = entries => entries.map(item => {
     const airport = airportByCode(item.code);
     return { ...item, name: airport?.name ?? item.code, lat: airport?.lat, lon: airport?.lon };
   });
-  return { ...row, record, departures: airportEntries(row.departures), arrivals: airportEntries(row.arrivals),
+  return { ...row, record, recent: row.recent.map(captureAirportNames),
+    departures: airportEntries(row.departures), arrivals: airportEntries(row.arrivals),
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
 
@@ -161,7 +173,7 @@ async function matchingCaptures(sql, owner, { code = null, page, departure = nul
     SELECT (SELECT count(*)::int FROM matches) AS total,
       COALESCE(jsonb_agg(to_jsonb(entries) - 'sort_name' - 'position' ORDER BY position), '[]') AS items
     FROM entries`;
-  return { ...result, pages: Math.ceil(result.total / pageSize) };
+  return { ...result, items: result.items.map(captureAirportNames), pages: Math.ceil(result.total / pageSize) };
 }
 
 async function fleetProfile(sql, owner, airline, models, since) {
