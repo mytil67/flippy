@@ -65,7 +65,7 @@ export function RouteNetwork({ routes, selected, onSelect }) {
       pathOptions={{ color: route === selected ? '#bc5718' : '#106c69', weight: route === selected ? 4 : 2, opacity: selected && route !== selected ? .25 : .78 }}>
       <Tooltip>
         <AirportPair departure={route.departure} arrival={route.arrival} fromName={route.from?.name} toName={route.to?.name} />
-        {count(route.count, 'vol')}
+        {route.count != null && count(route.count, 'vol')}
       </Tooltip>
     </Polyline>)}
     {selected?.from && selected?.to && [selected.from, selected.to].map((airport, index) =>

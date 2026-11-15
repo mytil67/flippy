@@ -6,7 +6,8 @@ import { knownAirline } from '../lib/flight.js';
 import { collectionInsights } from './collectionInsights.js';
 import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 import CollectionFleet, { RouteNetwork } from './CollectionFleet.jsx';
-import { AirportLabel, AirportPair } from './CollectionAirports.jsx';
+import CollectionDistanceLeaders from './CollectionDistanceLeaders.jsx';
+import { AirportLabel, AirportPair, CaptureRoute, RouteStatus, routeStates } from './CollectionAirports.jsx';
 import { collectionManufacturers } from './collectionManufacturers.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 import { collectionPeriods } from '../lib/collectionPeriod.js';
@@ -17,20 +18,6 @@ const tabs = [['stats', 'Vue d’ensemble'], ['recent', 'Captures'], ['airlines'
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 const captureName = item => item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase();
-const routeStates = {
-  confirmed: ['Trajet confirmé', 'confirmed'],
-  probable: ['Trajet probable', 'probable'],
-  unverified: ['Trajet non vérifié', 'unverified'],
-  announced: ['Trajet annoncé', 'unverified'],
-  conflict: ['Trajet incohérent écarté', 'conflict'],
-  unknown: ['Trajet inconnu', 'unknown']
-};
-
-function RouteStatus({ value }) {
-  const [label, tone] = routeStates[value] ?? routeStates.unknown;
-  return <span className={'route-status route-status-' + tone}>{label}</span>;
-}
-
 const aircraftPhotos = {
   a320: ['Airbus A320', 'Patrick Ludolph', 'Lufthansa_Airbus_A320_front-on_view.jpg', 'by/2.0'],
   b738: ['Boeing 737-800', 'AndrewDawes', 'Ryanair_Boeing_737.jpg', 'by-sa/4.0'],
@@ -142,21 +129,15 @@ function CaptureDetail({ item, onClose }) {
           </div>
           <button type="button" aria-label="Fermer la fiche" onClick={() => dialog.current?.close()}>×</button>
         </header>
-        {item.departure_code || item.arrival_code ? <div className="capture-detail-route">
-          <AirportPair departure={item.departure_code} arrival={item.arrival_code}
-            fromName={item.departure_name} toName={item.arrival_name} labeled />
-        </div> : <p className="capture-detail-unknown">Le trajet n’a pas pu être identifié pour cette capture.</p>}
+        <div className="capture-detail-route"><CaptureRoute item={item} labeled /></div>
         <dl className="capture-detail-facts">
           <div><dt>Appareil</dt><dd>{item.model || item.model_code || '—'}</dd></div>
           <div><dt>Immatriculation</dt><dd>{item.registration || '—'}</dd></div>
-          <div><dt>Trajet complet</dt><dd>{distance(item.route_km)}</dd></div>
+          {item.reported_route_km != null ?
+            <div><dt>Trajet annoncé, à vol d’oiseau</dt><dd>≈ {distance(item.reported_route_km)}</dd></div> :
+            <div><dt>Trajet complet</dt><dd>{distance(item.route_km)}</dd></div>}
           <div><dt>Trace observée</dt><dd>{distance(item.observed_km)}</dd></div>
         </dl>
-        <div className="capture-route-evidence"><RouteStatus value={item.route_status} />
-          {(item.reported_departure_code || item.reported_arrival_code) &&
-            <span className="capture-route-source">Source annoncée <AirportPair departure={item.reported_departure_code} arrival={item.reported_arrival_code}
-              fromName={item.reported_departure_name} toName={item.reported_arrival_name} /></span>}
-        </div>
         {item.airline && <div className="capture-detail-airline"><CompanyLogo code={item.airline_code} iata={item.airline_iata}
           flight={item.flight_number} name={item.airline} /><span>{item.airline}</span></div>}
       </div>
@@ -181,22 +162,13 @@ function CollectionCard({ item, tab }) {
 
 function CaptureRow({ item, onOpen }) {
   const flight = captureName(item);
-  const hasOtherReportedRoute = (item.reported_departure_code && item.reported_departure_code !== item.departure_code) ||
-    (item.reported_arrival_code && item.reported_arrival_code !== item.arrival_code);
   return <li><button type="button" className="capture-entry" onClick={() => onOpen(item)}>
     <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />
     <span className="capture-entry-flight"><strong>{flight}</strong>
       <span>{[item.airline, item.model || item.model_code].filter(Boolean).join(' · ') || 'Appareil non identifié'}</span></span>
-    <span className="capture-entry-route"><AirportPair departure={item.departure_code} arrival={item.arrival_code}
-      fromName={item.departure_name} toName={item.arrival_name} />
-      <RouteStatus value={item.route_status} />
-      {hasOtherReportedRoute && <span className="capture-route-source">
-        <small>Trajet annoncé par la source</small>
-        <AirportPair departure={item.reported_departure_code} arrival={item.reported_arrival_code}
-          fromName={item.reported_departure_name} toName={item.reported_arrival_name} />
-      </span>}
-    </span>
-    <span className="capture-entry-distance"><strong>{item.route_km == null ? '—' : distance(item.route_km)}</strong>
+    <span className="capture-entry-route"><CaptureRoute item={item} /></span>
+    <span className="capture-entry-distance">{item.route_km != null && <strong>{distance(item.route_km)}</strong>}
+      {item.reported_route_km != null && <><strong>≈ {distance(item.reported_route_km)}</strong><span>Trajet annoncé, à vol d’oiseau</span></>}
       {item.observed_km != null && <span>{distance(item.observed_km)} observés</span>}
       <time dateTime={item.captured_at}>{date.format(new Date(item.captured_at))}</time></span>
     <span className="capture-entry-arrow" aria-hidden="true">›</span>
@@ -264,7 +236,7 @@ function RecordFlight({ record }) {
   const routeCaptures = record.routeCaptureCount ?? 1;
   return <section id="record-flight" className="record-flight" aria-labelledby="record-flight-title">
     <header>
-      <div><p>Ton record de distance</p><h2 id="record-flight-title">{record.flight}</h2>
+      <div><p>Record des trajets renseignés</p><h2 id="record-flight-title">{record.flight}</h2>
         {record.airline && <span>{record.airline}</span>}</div>
       <div className="record-flight-distance"><strong>{distance(record.kilometers)}</strong><RouteStatus value={record.route_status} /></div>
     </header>
@@ -587,6 +559,7 @@ export default function Collection() {
           {tab === 'stats' && (dashboardError ? <div className="collection-empty"><p role="alert">{dashboardError}</p>
             <button type="button" onClick={() => { setPeriodResult(null); setPeriodAttempt(value => value + 1); }}>Réessayer</button></div> :
             !dashboard ? <p className="collection-empty" role="status">Chargement de la période…</p> : dashboard.count ? <>
+            <CollectionDistanceLeaders key={period} leaders={dashboard.distanceLeaders} onOpenCapture={setDetail} />
             <CollectionAnalysis key={period} data={dashboard} period={period} onOpenCapture={setDetail} manufacturers={manufacturers}
               onManufacturers={code => { changeTab('manufacturers'); setDrillPeriod(period); setManufacturer(code); }}
               onFlight={flight => { changeTab('recent'); setDrillPeriod(period); setFlightFilter(flight); }} />

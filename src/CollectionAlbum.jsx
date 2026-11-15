@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { latLngBounds } from 'leaflet';
 import { albumAirports, atlasConnection } from './albumAirports.js';
-import { AirportPair } from './CollectionAirports.jsx';
+import { CaptureRoute } from './CollectionAirports.jsx';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 
 const pageSize = 24;
@@ -162,8 +162,7 @@ export function AirportCaptures({ airport, route, model, direction, onOpenCaptur
         {result.items.length > 0 && <ul>{result.items.map(item => <li key={`${item.aircraft}:${item.callsign}:${item.captured_at}`}>
           <button type="button" onClick={() => onOpenCapture(item)}>
             <strong>{item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase()}</strong>
-            <AirportPair departure={item.departure_code} arrival={item.arrival_code}
-              fromName={item.departure_name} toName={item.arrival_name} />
+            <CaptureRoute item={item} />
             <time dateTime={item.captured_at}>{catalogDate(item.captured_at)}</time>
           </button>
         </li>)}</ul>}

@@ -92,12 +92,59 @@
 .collection-airport-separator { color: var(--mint); font-weight: 700; }
 .analysis-detail .collection-airport-pair { max-width: 360px; }
 .analysis-route-button { width: 100%; }
-.album-atlas-captures li button > .collection-airport-pair { flex: 1 1 185px; max-width: 340px; }
+.album-atlas-captures li button > .capture-route { flex: 1 1 185px; max-width: 340px; }
 :is(.capture-detail-route, .record-flight-route) .collection-airport-label:last-child { text-align: right; }
 :is(.capture-detail-route, .record-flight-route) .collection-airport-separator { align-self: center; font-size: 1.35rem; }
-.capture-route-source { display: grid; gap: 4px; }
-.capture-entry-route .capture-route-source { margin-top: 4px; color: var(--muted); }
+.capture-route, .capture-route-source { display: grid; min-width: 0; gap: 6px; }
+.capture-route-source { color: var(--muted); }
+.capture-route-source .collection-airport-label strong { color: var(--ink); font: inherit; font-weight: 750; letter-spacing: normal; }
 .collection-page .leaflet-tooltip :is(.collection-airport-pair, .collection-airport-label) { max-width: 230px; white-space: normal; }
+
+.distance-leaders {
+  margin-bottom: 22px; padding: clamp(14px, 3vw, 30px); border: 1px solid #254760; border-radius: 18px;
+  background: radial-gradient(ellipse at top right, #2a4c68, #102a41 70%); color: #f0f7fc;
+}
+.distance-leaders h2 { font-size: clamp(1.45rem, 3vw, 2.25rem); letter-spacing: -.04em; }
+.distance-leaders header p, .distance-leaders-note { margin-top: 5px; color: #c1d3e1; font-size: .88rem; }
+.distance-leaders-views { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; }
+.distance-leaders-views button {
+  min-height: 44px; border: 1px solid #6c8ca3; border-radius: 8px; padding: 6px 12px; background: #193952;
+  color: #f0f7fc; font-weight: 700; text-align: left;
+}
+.distance-leaders-views button[aria-pressed="true"] { border-color: #afe4d6; background: #afe4d6; color: #103b3a; }
+.distance-leaders-body {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start;
+  gap: 14px; margin-top: 14px;
+}
+.distance-leaders-feature {
+  display: grid; gap: 12px; min-width: 0; padding: clamp(12px, 2vw, 18px);
+  border: 1px solid #46657c; border-radius: 12px; background: #18364e;
+}
+.distance-leaders-feature-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; min-width: 0; }
+.distance-leaders-feature-heading h3 { font-size: clamp(1.2rem, 3vw, 1.8rem); overflow-wrap: anywhere; }
+.distance-leaders-feature-heading strong { color: #afe4d6; font-size: clamp(1.45rem, 3vw, 2.45rem); font-variant-numeric: tabular-nums; }
+.distance-leaders-feature-heading small, .distance-leaders-feature-heading p { display: block; color: #c1d3e1; font-size: .84rem; }
+.distance-leaders-feature > .collection-airport-pair { max-width: 410px; }
+.collection-page .distance-leaders :is(.distance-leaders-feature > .collection-airport-pair, .distance-leaders-item) small { color: #c1d3e1; }
+.distance-leaders .collection-airport-separator { color: #afe4d6; }
+.distance-leaders-feature .fleet-map { height: clamp(175px, 32vh, 270px); }
+.distance-leaders-feature .collection-back { justify-self: start; background: #eef7f8; }
+.distance-leaders-list { display: grid; gap: 7px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+.distance-leaders-list button {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  width: 100%; min-height: 62px; padding: 8px 10px; border: 1px solid #46657c; border-radius: 9px;
+  background: #193952; color: #f0f7fc; text-align: left;
+}
+.distance-leaders-list button:hover, .distance-leaders-list button[aria-pressed="true"] { background: #254d60; border-color: #83c6b8; }
+.distance-leaders-rank { color: #afe4d6; font-weight: 800; text-align: center; }
+.distance-leaders-item { min-width: 0; overflow-wrap: anywhere; }
+.distance-leaders-item .collection-airport-pair { margin-top: 4px; font-size: .8rem; }
+.distance-leaders-list small { display: block; margin-top: 3px; color: #c1d3e1; font-size: .78rem; }
+.distance-leaders-value { font-variant-numeric: tabular-nums; text-align: right; }
+.distance-leaders :focus-visible { outline: 2px solid #afe4d6; outline-offset: 2px; }
+@media (max-width: 760px) {
+  .distance-leaders-body { grid-template-columns: minmax(0, 1fr); }
+}
 
 .dashboard-summary { margin-bottom: 18px; }
 .dashboard-summary h2 { margin-bottom: 8px; font-size: 1.15rem; }

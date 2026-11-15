@@ -494,7 +494,6 @@ button.album-map-open { border: 0; min-height: 28px; }
 .route-status-confirmed { border-color: #51cbb7; background: #123c3b; color: #9ff1df; }
 .route-status-probable { border-color: #d8a44d; background: #3d321e; color: #ffd790; }
 .route-status-conflict { border-color: #d36e64; background: #432522; color: #ffb0a5; }
-.capture-route-evidence { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; color: var(--muted); font-size: 12px; }
 .collection-stats div > span { color: var(--muted); font-size: 12px; }
 .record-flight { margin-top: 20px; overflow: hidden; border: 1px solid #416473; border-left: 5px solid var(--amber); border-radius: 5px 24px 24px 5px; background: #0a2431; }
 .record-flight > header { display: flex; align-items: start; justify-content: space-between; gap: 20px; padding: 20px 22px 16px; }
@@ -547,7 +546,6 @@ button.album-map-open { border: 0; min-height: 28px; }
 .capture-detail-content header button:hover { background: #204c5c; }
 .capture-detail-route { margin: 30px 0 24px; padding: 18px 0; border-block: 1px solid var(--line); }
 .capture-detail-route strong { display: block; margin-top: 3px; font: 800 32px/1 ui-monospace, monospace; letter-spacing: -.06em; }
-.capture-detail-unknown { margin: 30px 0 24px; padding: 16px 0; border-block: 1px solid var(--line); color: var(--muted); font-size: 13px; line-height: 1.45; }
 .capture-detail-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 22px; margin: 0; }
 .capture-detail-facts dt { color: var(--muted); font-size: 11px; }
 .capture-detail-facts dd { margin-top: 3px; font-size: 15px; font-weight: 800; overflow-wrap: anywhere; }

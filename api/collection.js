@@ -7,6 +7,7 @@ import { flightTrace } from '../lib/trace.js';
 import { resolveFlightRoute, routeDistance, routeStatus } from '../lib/routeEvidence.js';
 import { airportByCode } from '../lib/airportLookup.js';
 import { collectionPeriodStart } from '../lib/collectionPeriod.js';
+import { captureAirportDetails, collectionDistanceLeaders } from '../lib/collectionDistances.js';
 
 const empty = { count: 0, aircraft: 0, measured: 0, kilometers: 0, routeCount: 0, routeKilometers: null, record: null, planes: [], models: [], airlines: [], departures: [], arrivals: [], routes: [], recent: [] };
 let evidenceSchema;
@@ -25,16 +26,6 @@ function ensureEvidenceSchema(sql) {
       throw error;
     });
   return evidenceSchema;
-}
-
-function captureAirportNames(item) {
-  return {
-    ...item,
-    departure_name: airportByCode(item.departure_code)?.name,
-    arrival_name: airportByCode(item.arrival_code)?.name,
-    reported_departure_name: airportByCode(item.reported_departure_code)?.name,
-    reported_arrival_name: airportByCode(item.reported_arrival_code)?.name
-  };
 }
 
 async function collection(sql, owner, since) {
@@ -90,6 +81,14 @@ async function collection(sql, owner, since) {
         route_status, reported_flight_number, reported_departure_code, reported_arrival_code,
         captured_lat, captured_lon, captured_heading
       FROM own ORDER BY captured_at DESC LIMIT 30
+    ), distance_candidates AS (
+      SELECT aircraft, callsign, captured_at, flight_number, registration, model_code, model,
+        airline_code, airline_iata, airline, observed_km, route_km, departure_code, arrival_code,
+        route_status, reported_flight_number, reported_departure_code, reported_arrival_code
+      FROM own WHERE route_status IS DISTINCT FROM 'conflict' AND (
+        (route_km > 0 AND departure_code <> arrival_code)
+        OR (route_km IS NULL AND reported_departure_code <> reported_arrival_code)
+      )
     ), frequent AS (
       SELECT upper(coalesce(nullif(flight_number, ''), nullif(callsign, ''))) AS flight,
         count(*)::int AS count, max(airline) AS airline, sum(route_km) AS route_km,
@@ -127,19 +126,21 @@ async function collection(sql, owner, since) {
       COALESCE((SELECT json_agg(routes ORDER BY count DESC, departure, arrival) FROM routes), '[]') AS routes,
       COALESCE((SELECT json_agg(route_airlines ORDER BY count DESC, name, code) FROM route_airlines), '[]') AS "routeAirlines",
       COALESCE((SELECT json_agg(recent ORDER BY captured_at DESC) FROM recent), '[]') AS recent,
-      COALESCE((SELECT json_agg(frequent ORDER BY count DESC, flight) FROM frequent), '[]') AS "frequentFlights"
+      COALESCE((SELECT json_agg(frequent ORDER BY count DESC, flight) FROM frequent), '[]') AS "frequentFlights",
+      COALESCE((SELECT json_agg(distance_candidates) FROM distance_candidates), '[]') AS distance_candidates
     FROM own`;
   const record = row.record ? {
     ...row.record,
     from: airportByCode(row.record.departure_code),
     to: airportByCode(row.record.arrival_code),
-    history: row.record.history.map(captureAirportNames)
+    history: row.record.history.map(captureAirportDetails)
   } : null;
   const airportEntries = entries => entries.map(item => {
     const airport = airportByCode(item.code);
     return { ...item, name: airport?.name ?? item.code, lat: airport?.lat, lon: airport?.lon };
   });
-  return { ...row, record, recent: row.recent.map(captureAirportNames),
+  const { distance_candidates, ...summary } = row;
+  return { ...summary, distanceLeaders: collectionDistanceLeaders(distance_candidates), record, recent: row.recent.map(captureAirportDetails),
     departures: airportEntries(row.departures), arrivals: airportEntries(row.arrivals),
     kilometers: Number(row.kilometers), routeKilometers: row.routeKilometers === null ? null : Number(row.routeKilometers) };
 }
@@ -174,7 +175,7 @@ async function matchingCaptures(sql, owner, { code = null, page, departure = nul
     SELECT (SELECT count(*)::int FROM matches) AS total,
       COALESCE(jsonb_agg(to_jsonb(entries) - 'sort_name' - 'position' ORDER BY position), '[]') AS items
     FROM entries`;
-  return { ...result, items: result.items.map(captureAirportNames), pages: Math.ceil(result.total / pageSize) };
+  return { ...result, items: result.items.map(captureAirportDetails), pages: Math.ceil(result.total / pageSize) };
 }
 
 async function fleetProfile(sql, owner, airline, models, since) {
