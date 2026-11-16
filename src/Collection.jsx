@@ -7,6 +7,7 @@ import { collectionInsights } from './collectionInsights.js';
 import CollectionAlbum, { AirportCaptures } from './CollectionAlbum.jsx';
 import CollectionFleet, { RouteNetwork } from './CollectionFleet.jsx';
 import CollectionDistanceLeaders from './CollectionDistanceLeaders.jsx';
+import CollectionProgress from './CollectionProgress.jsx';
 import { AirportLabel, AirportPair, CaptureRoute, RouteStatus, routeStates } from './CollectionAirports.jsx';
 import { collectionManufacturers } from './collectionManufacturers.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
@@ -550,6 +551,7 @@ export default function Collection() {
               {label}
             </button>)}
           </nav>
+          <CollectionProgress data={data} tab={tab} />
           {tab === 'album' && <CollectionAlbum data={data} onOpenCapture={setDetail} onSearchCaptures={searchCaptures} />}
           {tab === 'airlines' && <CollectionFleet key="airlines" items={data.airlines ?? []} CompanyLogo={CompanyLogo} />}
           {drillPeriod !== 'all' && <button className="collection-back collection-result" type="button" onClick={() => { setDrillPeriod('all'); setCapturePage(1); }}>

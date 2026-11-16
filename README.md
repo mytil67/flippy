@@ -15,7 +15,7 @@ npm run dev
 
 Ouvrir le [radar local](http://localhost:8765/) ou la [collection locale](http://localhost:8765/collection). Sous Windows, `Lancer le radar.cmd` installe les dépendances si nécessaire et ouvre le navigateur. Le mode Démo fournit des positions et des traces fictives pour tester le billet et la relecture sans flux ADS-B. Le fond de carte reste chargé depuis OpenStreetMap.
 
-Vite monte les fonctions du radar, des photos, du compte et de la collection sur le serveur local. `/api/catalog` est servi par Vercel.
+Vite monte les fonctions du radar, des photos, du compte, de la collection et du catalogue sur le serveur local.
 
 Le bouton **Station radar** ouvre l’affichage tablette. L’URL `/?station=1&interval=30` ouvre directement ce mode et règle l’intervalle à 30 secondes. Le défilement démarre après un appui sur **Lancer le défilement**. Il privilégie les vols en direct puis les passages récents, et s’arrête lorsqu’un vol est sélectionné à la main. Lors d’une capture, le billet reste à l’écran pendant l’enregistrement. Le défilement reprend ensuite s’il était actif.
 
@@ -82,6 +82,8 @@ Les logos des constructeurs intégrés au site proviennent de Wikimedia Commons.
 - PostgreSQL déduplique les captures sur `(collector_id, aircraft, callsign, flight_day)`. `flight_day` correspond au jour UTC de la position. La couleur de la pastille utilise la dernière capture du couple appareil et indicatif.
 - `observed_km` additionne les distances dans les segments réellement disponibles, sans relier les coupures. `route_km` correspond à la distance à vol d’oiseau entre les aéroports retenus. Si les coordonnées ou les preuves nécessaires manquent, `route_km` reste `NULL`.
 - Les statistiques comptent les liaisons présentes dans la collection et distinguent les deux sens, par exemple DUB → VCE et VCE → DUB. Elles décrivent cet échantillon de vols capturés.
+- La progression compare toutes les captures aux référentiels. Les modèles utilisent les codes de type du [Doc 8643 de l’OACI](https://www.icao.int/operational-safety/Designators-and-indicators). Pour les constructeurs, un code constructeur du catalogue est associé à chaque type, puis dédupliqué. Le total comprend tous les codes constructeurs publiés par l’OACI.
+- Les codes de compagnies de `lib/airlineReference.json` proviennent de l’[instantané public OpenFlights](https://openflights.org/data#airline), sous [ODbL](https://opendatacommons.org/licenses/odbl/1-0/). Ce référentiel historique conserve les codes ICAO ou, à défaut, IATA. Un code IATA est traité comme alias d’un code ICAO lorsque la correspondance est unique dans l’instantané.
 - Pour initialiser une base de développement, exécuter les fichiers `db/001_*.sql` à `db/005_*.sql` dans l’ordre. La fonction Collection contient aussi une mise à niveau idempotente des colonnes de preuve de trajet.
 
 ## Vérification et mise en production

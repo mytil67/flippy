@@ -40,7 +40,8 @@ async function aircraftCatalog() {
       method: 'POST', signal: AbortSignal.timeout(10000)
     }).then(response => response.ok ? response.json() : null).catch(() => null)
   ]).then(([rows, stats]) => {
-    return { items: normalizeAircraftModels(rows).sort(byName), updated: stats?.LastUpdated ?? null };
+    const manufacturers = new Set(rows.map(row => row.ManufacturerCode?.trim()).filter(Boolean));
+    return { items: normalizeAircraftModels(rows).sort(byName), manufacturerTotal: manufacturers.size, updated: stats?.LastUpdated ?? null };
   }).catch(error => {
     aircraftCache = undefined;
     throw error;
@@ -60,6 +61,13 @@ export default async function handler(request, response) {
   const excluded = new Set((searchParams.get('exclude') || '').split(',').filter(code => /^[A-Z0-9]{2,5}$/.test(code)));
 
   try {
+    if (searchParams.get('view') === 'progress') {
+      const catalog = await aircraftCatalog();
+      return reply(response, 200, {
+        modelManufacturers: Object.fromEntries(catalog.items.map(item => [item.code, item.manufacturer])),
+        manufacturerTotal: catalog.manufacturerTotal
+      }, 86400);
+    }
     const catalog = kind === 'models' ? await aircraftCatalog() : { items: airportCatalog, updated: null };
     const filtered = catalog.items.filter(item => !excluded.has(item.code) && (!query ||
       searchable([item.code, item.name, item.manufacturer].filter(Boolean).join(' ')).includes(query)));

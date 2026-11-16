@@ -24,6 +24,24 @@
 .collection-layout { gap: 20px; }
 .collection-page .collection-tabs { gap: 7px; margin: 0 0 22px; padding-bottom: 12px; }
 .collection-tabs button[aria-pressed="true"], .collection-page .album-toolbar button[aria-pressed="true"] { background: #dcefe9; border-color: #87b9ae; color: #12554d; }
+.collection-progress { margin-bottom: 20px; }
+.collection-progress > header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 12px; }
+.collection-progress h2 { font-size: 1.2rem; }
+.collection-progress > header p, .collection-progress > p, .collection-progress-error, .collection-progress li small {
+  color: var(--muted); font-size: .84rem;
+}
+.collection-progress ul {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 10px; padding: 0; margin: 9px 0 0; list-style: none;
+}
+.collection-progress li { min-width: 0; padding: 12px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.collection-progress li h3 { font-size: .86rem; }
+.collection-progress li p { margin-top: 4px; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.collection-progress li strong { color: var(--mint); font-size: 1.55rem; line-height: 1.15; }
+.collection-progress li small { display: block; margin-top: 6px; }
+.collection-progress progress { display: block; width: 100%; height: 7px; margin-top: 7px; accent-color: var(--mint); }
+.collection-progress-error { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.collection-progress > p, .collection-progress-error { margin-top: 6px; }
 .collection-page .collection-back, .collection-page .collection-tabs button { min-height: 44px; font-size: .9rem; }
 .collection-page .collection-access { max-width: 480px; padding: 20px; }
 .collection-page .collection-access button:hover:not(:disabled) { background: #dcefe9; }
