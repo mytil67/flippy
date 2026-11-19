@@ -79,13 +79,13 @@ function MapActions({ recenter, bounds, panel, fitRevision, following, tracked, 
   return null;
 }
 
-function aircraftIcon(heading, active, captureColor) {
+function aircraftIcon(heading, active, captureColor, discovery) {
   const angle = Number.isFinite(heading) ? heading : 0;
   return divIcon({
     className: 'aircraft-marker' + (active ? ' is-active at-click' : '') + (captureColor ? ` capture-${captureColor}` : ''),
     iconSize: [34, 34],
     iconAnchor: [17, 17],
-    html: `<svg viewBox="0 0 24 24" style="transform:rotate(${angle}deg)" aria-hidden="true"><path d="${planePath}"/></svg>${captureColor ? '<span class="capture-check" aria-hidden="true">✓</span>' : ''}`
+    html: `<svg viewBox="0 0 24 24" style="transform:rotate(${angle}deg)" aria-hidden="true"><path d="${planePath}"/></svg>${captureColor ? '<span class="capture-check" aria-hidden="true">✓</span>' : ''}${discovery ? '<span class="aircraft-discovery" aria-hidden="true">✦</span>' : ''}`
   });
 }
 
@@ -126,11 +126,11 @@ function AirportPin({ position, airport, title, arrival = false }) {
   </CircleMarker>;
 }
 
-const Aircraft = memo(function Aircraft({ plane, active, muted, flightNumber, flightTime, onSelect, captureColor }) {
+const Aircraft = memo(function Aircraft({ plane, active, muted, flightNumber, flightTime, onSelect, captureColor, discovery }) {
   const marker = useRef(null);
   const label = plane.callsign || plane.registration || plane.id.toUpperCase();
-  const markerLabel = captureColor ? `${label} · ${captureLabels[captureColor]}` : label;
-  const icon = useMemo(() => aircraftIcon(plane.heading, active, captureColor), [plane.heading, active, captureColor]);
+  const markerLabel = [label, captureLabels[captureColor], discovery && 'À découvrir'].filter(Boolean).join(' · ');
+  const icon = useMemo(() => aircraftIcon(plane.heading, active, captureColor, discovery), [plane.heading, active, captureColor, discovery]);
   useEffect(() => {
     const element = marker.current?.getElement();
     element?.setAttribute('aria-label', markerLabel);
@@ -178,7 +178,7 @@ function LivePosition({ plane, stale }) {
   </CircleMarker>;
 }
 
-export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace, captureColors, lightweight, passage }) {
+export default function RadarMap({ planes, focus, route, geometry, coverage, flightNumber, flightTime, onSelect, recenter, panel, following, tracked, livePosition, trail, replay, fitRevision, fitReady, localTrace, captureColors, lightweight, passage, discoveryPlanes, selectedDiscovery }) {
   const original = focus?.plane;
   const moved = livePosition && (livePosition.lat !== original?.lat || livePosition.lon !== original?.lon);
   const replayTrack = replay && geometry?.tracks[replay.part];
@@ -226,10 +226,11 @@ export default function RadarMap({ planes, focus, route, geometry, coverage, fli
         </CircleMarker>
       </>}
       {planes.filter(plane => plane.id !== focus?.plane.id).map(plane =>
-        <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} captureColor={captureColors[captureFlightKey(plane)]} />
+        <Aircraft key={plane.id} plane={plane} onSelect={onSelect} muted={Boolean(focus)} captureColor={captureColors[captureFlightKey(plane)]}
+          discovery={discoveryPlanes.has(plane.id)} />
       )}
       {focus && <Aircraft key={focus.revision} plane={focus.plane} active captureColor={captureColors[captureFlightKey(focus.plane)]}
-        flightNumber={flightNumber} flightTime={flightTime} onSelect={onSelect} />}
+        flightNumber={flightNumber} flightTime={flightTime} onSelect={onSelect} discovery={selectedDiscovery} />}
       {trail.length > 0 && <Polyline positions={trail} interactive={false} className="observed-trace" pathOptions={liveTrailStyle} />}
       {moved && <LivePosition plane={livePosition} stale={!tracked} />}
       {replayPosition && <CircleMarker center={replayPosition} radius={7} interactive={false}

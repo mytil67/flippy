@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { routeDistance } from '../lib/routeEvidence.js';
 import { planePath } from './RadarMap.jsx';
 import { stationIntervals } from './stationTraffic.js';
+import { DiscoveryBadges } from './DiscoveryBadges.jsx';
 
 const time = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' });
 const number = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 });
@@ -31,7 +32,7 @@ function StationIcon({ name }) {
     strokeLinecap="round" strokeLinejoin="round"><path d={paths[name]} /></svg>;
 }
 
-export function StationControls({ count, status, updated, interval, onInterval, paused, onPause, onExit, onFullscreen, passagesOpen, onPassages }) {
+export function StationControls({ count, status, updated, interval, onInterval, paused, onPause, onExit, onFullscreen, passagesOpen, onPassages, discoveryToggle }) {
   return <header className="station-header">
     <div className="station-identity">
       <span className="station-emblem"><StationIcon name="radar" /></span>
@@ -48,6 +49,7 @@ export function StationControls({ count, status, updated, interval, onInterval, 
           {stationIntervals.map(seconds => <option key={seconds} value={seconds}>{seconds < 60 ? seconds + ' s' : seconds / 60 + ' min'}</option>)}
         </select>
       </label>
+      {discoveryToggle}
       <button type="button" className="station-rotation station-passages-toggle" aria-label="Passages" aria-expanded={passagesOpen}
         aria-controls={passagesOpen ? 'station-passages' : undefined} onClick={onPassages}>
         <StationIcon name="board" /><span>Passages</span>
@@ -119,7 +121,7 @@ function StationPhoto({ plane, code, model }) {
   </figure>;
 }
 
-export function StationTicket({ plane, route, loading, duration, automatic, onClose, onNext, canCapture, capture, onCapture, passage, showPassage }) {
+export function StationTicket({ plane, route, loading, duration, automatic, onClose, onNext, canCapture, capture, onCapture, passage, showPassage, discoveries }) {
   const swipeStart = useRef(null);
   const code = route?.airframe?.type || plane.type;
   const model = route?.airframe?.model || plane.model || code || 'Modèle inconnu';
@@ -146,6 +148,7 @@ export function StationTicket({ plane, route, loading, duration, automatic, onCl
         {Number.isFinite(plane.observedAt) && <span> · Vu à {time.format(plane.observedAt)}</span>}</p>
       <h2>{route?.number || plane.callsign || plane.registration || plane.id.toUpperCase()}</h2>
       {airline && <p className="station-airline">{airline}</p>}
+      <DiscoveryBadges discoveries={discoveries} />
       <div className="station-route">
         {[route?.from, route?.to].map((airport, index) => <div key={index}>
           <span>{index === 0 ? 'Départ' : route?.historicalRoute ? 'Arrivée probable' : 'Arrivée'}</span>

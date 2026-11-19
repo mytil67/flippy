@@ -304,6 +304,17 @@ export default async function handler(request, response) {
           GROUP BY aircraft, callsign` : [];
         return reply(response, 200, { matches });
       }
+      if (searchParams.has('discoveries')) {
+        const [discoveries] = owner ? await sql`
+          SELECT array_agg(DISTINCT model_code) FILTER (WHERE model_code IS NOT NULL) AS models,
+            array_agg(DISTINCT airline_code) FILTER (WHERE airline_code IS NOT NULL) AS airlines,
+            array_agg(DISTINCT airline_iata) FILTER (WHERE airline_iata IS NOT NULL) AS iata,
+            array_agg(DISTINCT departure_code || ':' || arrival_code) FILTER (
+              WHERE route_km IS NOT NULL AND departure_code <> arrival_code AND route_status IS DISTINCT FROM 'conflict'
+            ) AS routes
+          FROM flippy_captures WHERE collector_id = ${owner}` : [];
+        return reply(response, 200, { discoveries: discoveries ?? null });
+      }
       if (searchParams.has('airport') || searchParams.has('model')) {
         const code = searchParams.get('airport');
         const model = searchParams.get('model');

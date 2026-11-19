@@ -11,6 +11,10 @@ import { appendLiveSample, isFollowPosition, liveTrailSegments, radarTrace, reco
 import { orderTraffic } from './trafficSort.js';
 import { StationControls, StationPassages, StationTicket } from './RadarStation.jsx';
 import { nextSpotlight, spotlightKey, stationIntervals, upcomingPassages } from './stationTraffic.js';
+import { DiscoveryBadges, DiscoveryToggle } from './DiscoveryBadges.jsx';
+import { discoveryIndex, flightDiscoveries } from './radarDiscoveries.js';
+
+const noDiscoveryHistory = new Map();
 
 const demo = [
   { id: 'demo-af', callsign: 'AFR1234', registration: 'F-GKXJ', type: 'A320', model: 'Airbus A320', lat: 48.78, lon: 7.98, altitude: 12400, heading: 150, speed: 390,
@@ -296,6 +300,8 @@ export default function App() {
   const [showTraffic, setShowTraffic] = useState(false);
   const [capture, setCapture] = useState(null);
   const [captureHistory, setCaptureHistory] = useState({});
+  const [discoveries, setDiscoveries] = useState(null);
+  const [discoveriesOnly, setDiscoveriesOnly] = useState(false);
   const [captureNow, setCaptureNow] = useState(Date.now);
   const [recenter, setRecenter] = useState(0);
   const [fitRevision, setFitRevision] = useState(0);
@@ -318,6 +324,7 @@ export default function App() {
   const selected = focus?.plane;
   const captureKey = selected && `${selected.id}:${selected.callsign}:${Math.floor((selected.observedAt ?? 0) / 86400000)}`;
   const selectedCapture = capture?.key === captureKey ? capture : null;
+  const savedCaptureKey = capture?.saved ? capture.key : '';
   const radarAircraft = mode === 'live' ? [...new Set([...planes, selected].filter(plane =>
     /^[0-9a-f]{6}$/.test(plane?.id ?? '')).map(plane => plane.id))].sort().join(',') : '';
   const captureColors = useMemo(() => mode === 'live' ? Object.fromEntries(Object.entries(captureHistory)
@@ -362,6 +369,31 @@ export default function App() {
       document.removeEventListener('visibilitychange', refresh);
     };
   }, [radarAircraft, capture]);
+  useEffect(() => {
+    if (mode !== 'live') return;
+    let controller;
+    function refresh() {
+      if (document.hidden) return;
+      controller?.abort();
+      const request = new AbortController();
+      controller = request;
+      collectionRequest('?discoveries=1', { signal: request.signal }).then(result => {
+        if (!request.signal.aborted) setDiscoveries(discoveryIndex(result.discoveries));
+      }).catch(() => {
+        if (!request.signal.aborted) setDiscoveries(null);
+      });
+    }
+    refresh();
+    const timer = setInterval(refresh, 60000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      controller?.abort();
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [mode, savedCaptureKey]);
   const params = selected && mode === 'live' ? lookupParams(selected) : '';
   const reportedRoute = detail?.params === params ? detail.data : null;
   const traceParams = mode === 'live' && selected && /^[0-9a-f]{6}$/.test(selected.id) && Number.isFinite(selected.observedAt)
@@ -379,6 +411,20 @@ export default function App() {
     if (mode === 'demo') return selected?.route;
     return resolveFlightRoute(reportedRoute, traceResult?.departure, selected, segments, traceLoading);
   }, [mode, selected, reportedRoute, traceResult, traceLoading, segments]);
+  const discoveryReady = mode === 'live' && Boolean(discoveries);
+  const discoveryFilter = discoveryReady && discoveriesOnly;
+  const discoveryPlanes = useMemo(() => {
+    const candidates = new Set();
+    if (discoveryReady) for (const plane of planes) {
+      const selectedRoute = plane.id === selected?.id && plane.callsign === selected.callsign ? route : undefined;
+      if (flightDiscoveries(discoveries, plane, selectedRoute).length) candidates.add(plane.id);
+    }
+    return candidates;
+  }, [discoveryReady, discoveries, planes, selected, route]);
+  const visiblePlanes = useMemo(() => discoveryFilter ? planes.filter(plane => discoveryPlanes.has(plane.id)) : planes,
+    [discoveryFilter, planes, discoveryPlanes]);
+  const selectedDiscoveries = discoveryReady ? flightDiscoveries(discoveries, selected, route) : [];
+  const discoveryToggle = discoveryReady && <DiscoveryToggle active={discoveryFilter} onToggle={() => setDiscoveriesOnly(value => !value)} />;
   const geometry = useMemo(() => buildTraceGeometry(focus, route, segments), [focus, route, segments]);
   const routeLoading = Boolean(params && detail?.params !== params);
   const timestamps = localTrace?.timestamps ?? traceResult?.timestamps;
@@ -512,7 +558,7 @@ export default function App() {
     };
   }, [callsigns, term]);
 
-  const matches = planes.filter(plane => {
+  const matches = visiblePlanes.filter(plane => {
     const details = plane.id === selected?.id ? route ?? searchDetails[plane.callsign] :
       plane.route ?? validateRouteDirection(searchDetails[plane.callsign], plane);
     const airline = details?.airline ?? plane.airline;
@@ -549,7 +595,7 @@ export default function App() {
     mode === 'demo' ? plane.id === selected.id : isFollowPosition(selected, null, plane));
   function showNextStationFlight() {
     if (stationOffline || selectedCapture?.pending) return false;
-    const plane = nextSpotlight(planes, radarHistory, seenSpotlights.current, mode, Date.now(), selected);
+    const plane = nextSpotlight(visiblePlanes, discoveryFilter ? noDiscoveryHistory : radarHistory, seenSpotlights.current, mode, Date.now(), selected);
     if (!plane) return false;
     choosePlane(plane, true);
     return true;
@@ -560,7 +606,7 @@ export default function App() {
     setFocus(null);
     return true;
   });
-  const stationHasTraffic = Boolean(planes.length || radarHistory.size);
+  const stationHasTraffic = Boolean(visiblePlanes.length || (!discoveryFilter && radarHistory.size));
   const automaticSeconds = Math.min(15, Math.floor(stationInterval * .6));
   useEffect(() => {
     if (!station || stationPaused || stationOffline || passagesOpen || selectedCapture?.pending ||
@@ -685,7 +731,8 @@ export default function App() {
 
   return <main className={'app' + (station ? ' radar-station' : '')} ref={display}>
     <section className="map-wrap" aria-label="Carte interactive des avions autour de Schiltigheim">
-      <RadarMap planes={planes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors} lightweight={station}
+      <RadarMap planes={visiblePlanes} focus={focus} route={route} geometry={geometry} coverage={coverage} captureColors={captureColors} lightweight={station}
+        discoveryPlanes={discoveryPlanes} selectedDiscovery={selectedDiscoveries.length > 0}
         passage={selectedPassage}
         flightNumber={route?.number || selected?.callsign || 'Numéro inconnu'}
         flightTime={duration ?? (traceLoading ? 'Calcul du temps de vol…' : 'Temps de vol indisponible')}
@@ -693,7 +740,8 @@ export default function App() {
         recenter={recenter} fitRevision={fitRevision} panel={panel} following={following} tracked={tracked}
         livePosition={livePosition} trail={trail} replay={replay.frame} />
     </section>
-    {station ? <StationControls count={planes.length} status={stationOffline ? snapshot ? 'Dernier relevé' : 'Signal indisponible' : status} updated={mode === 'live' && snapshot?.updatedAt}
+    {station ? <StationControls count={visiblePlanes.length} status={stationOffline ? snapshot ? 'Dernier relevé' : 'Signal indisponible' : status} updated={mode === 'live' && snapshot?.updatedAt}
+      discoveryToggle={discoveryToggle}
       interval={stationInterval} onInterval={changeStationInterval} paused={stationPaused}
       onPause={toggleStationRotation} passagesOpen={passagesOpen} onPassages={togglePassages}
       onExit={() => changeStation(false)} onFullscreen={toggleFullscreen} /> : <header className="masthead">
@@ -708,9 +756,9 @@ export default function App() {
         </div>
         <div className="radar-actions">
           <button type="button" className="station-launch" onClick={() => changeStation(true)}><Icon name="radar" /> Station radar</button>
-          <button ref={trafficToggle} type="button" className="traffic-toggle" aria-label={'Vols à proximité, ' + planes.length}
+          <button ref={trafficToggle} type="button" className="traffic-toggle" aria-label={'Vols à proximité, ' + visiblePlanes.length}
             aria-expanded={showTraffic} aria-controls={showTraffic ? 'nearby-flights' : undefined}
-            onClick={() => setShowTraffic(value => !value)}>Vols <strong>{planes.length}</strong></button>
+            onClick={() => setShowTraffic(value => !value)}>Vols <strong>{visiblePlanes.length}</strong></button>
           <button type="button" onClick={returnToRadar} aria-label="Recentrer sur le radar" title="Recentrer sur le radar"><Icon name="radar" /></button>
           <button type="button" onClick={toggleFullscreen} aria-label="Basculer le plein écran" title="Plein écran"><Icon name="fullscreen" /></button>
         </div>
@@ -722,19 +770,25 @@ export default function App() {
       <span className="live-dot" />{status}<span className="signal-detail">· 100 km</span>
       {mode === 'live' && snapshot && <a href={snapshot.source === 'ADSB.fi' ? 'https://adsb.fi/' : 'https://www.adsb.lol/'}>{snapshot.source} · {clock.format(snapshot.updatedAt)}</a>}
     </div>
-    <a className="collection-launch" href="/collection"><Icon name="collection" /> Collection</a>
-    {mode === 'live' && planes.some(plane => captureColors[captureFlightKey(plane)]) && <div className="capture-legend" aria-label="Couleurs des captures">
-      <span className="capture-today">Aujourd’hui</span><span className="capture-previous">Jours précédents</span>
-    </div>}
-    {!focus && !showTraffic && planes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>}
+    <div className="collection-tools">
+      <a className="collection-launch" href="/collection"><Icon name="collection" /> Collection</a>
+      {discoveryToggle}
+      {mode === 'live' && visiblePlanes.some(plane => captureColors[captureFlightKey(plane)]) && <div className="capture-legend" aria-label="Couleurs des captures">
+        <span className="capture-today">Aujourd’hui</span><span className="capture-previous">Jours précédents</span>
+      </div>}
+    </div>
     </>}
-    {station && passagesOpen && <StationPassages passages={passages} offline={stationOffline} demo={mode === 'demo'}
+    {!focus && !showTraffic && (discoveryFilter && !visiblePlanes.length ?
+      <p className="map-hint" role="status">Aucune découverte parmi les vols identifiés.</p> :
+      !station && visiblePlanes.length > 0 && <p className="map-hint"><Icon name="radar" /> Sélectionne un avion pour ouvrir son billet</p>)}
+    {station && passagesOpen && <StationPassages passages={discoveryFilter ? passages.filter(({ plane }) => discoveryPlanes.has(plane.id)) : passages}
+      offline={stationOffline} demo={mode === 'demo'}
       onSelect={plane => choosePlane(plane, false, true)} onClose={togglePassages} />}
     {station && focus && !passagesOpen && <StationTicket key={focus.revision} plane={selected} route={route} loading={routeLoading || traceLoading}
       duration={duration} automatic={focus.automatic} onClose={returnToRadar}
       passage={selectedPassage} showPassage={focus.showPassage}
       onNext={stationOffline || selectedCapture?.pending ? undefined : showNextStationFlight}
-      canCapture={canCapture} capture={selectedCapture} onCapture={capturePlane} />}
+      canCapture={canCapture} capture={selectedCapture} onCapture={capturePlane} discoveries={selectedDiscoveries} />}
     {!station && focus && <aside className={'flight-column' + (panelExpanded ? '' : ' is-compact') + (showTraffic ? ' behind-traffic' : '')}
       ref={panel} aria-label="Informations sur les vols">
       <div className="flight-panel">
@@ -749,6 +803,7 @@ export default function App() {
           <span>Position au clic {selected.observedAt ? '· ' + preciseClock.format(selected.observedAt) : ''}</span>
         </div>
         <FlightTicket plane={selected} route={route} loading={routeLoading || traceLoading} mode={mode} failed={mode === 'live' && failed} />
+        <DiscoveryBadges discoveries={selectedDiscoveries} />
         {canCapture && <div className="capture-row">
           {selectedCaptureColor && !selectedCapture?.message && <span>{captureLabels[selectedCaptureColor]}</span>}
           <button type="button" onClick={capturePlane} disabled={capture?.pending || selectedCapture?.saved}>
@@ -800,8 +855,8 @@ export default function App() {
         </section>}
       </div>
     </aside>}
-    {showTraffic && <TrafficPanel planes={planes} matches={matches} selected={selected} query={query} searching={searching}
-      status={status} route={route} searchDetails={searchDetails} onQuery={value => { setQuery(value); setSearching(false); }}
+    {showTraffic && <TrafficPanel planes={visiblePlanes} matches={matches} selected={selected} query={query} searching={searching}
+      status={discoveryFilter && !visiblePlanes.length ? 'Aucune découverte parmi les vols identifiés.' : status} route={route} searchDetails={searchDetails} onQuery={value => { setQuery(value); setSearching(false); }}
       onSelect={choosePlane} onClose={closeTraffic} />}
   </main>;
 }

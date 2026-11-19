@@ -3,6 +3,7 @@ import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from
 import { latLngBounds } from 'leaflet';
 import { albumAirports, atlasConnection } from './albumAirports.js';
 import { CaptureRoute } from './CollectionAirports.jsx';
+import { captureIdentity } from './captureIdentity.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 
 const pageSize = 24;
@@ -161,7 +162,7 @@ export function AirportCaptures({ airport, route, model, direction, onOpenCaptur
           {!route && ` · ${model?.name || airport?.name || model?.code || airport?.code}`}</p>
         {result.items.length > 0 && <ul>{result.items.map(item => <li key={`${item.aircraft}:${item.callsign}:${item.captured_at}`}>
           <button type="button" onClick={() => onOpenCapture(item)}>
-            <strong>{item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase()}</strong>
+            <strong>{captureIdentity(item).title}</strong>
             <CaptureRoute item={item} />
             <time dateTime={item.captured_at}>{catalogDate(item.captured_at)}</time>
           </button>

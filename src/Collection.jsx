@@ -12,13 +12,13 @@ import { AirportLabel, AirportPair, CaptureRoute, RouteStatus, routeStates } fro
 import { collectionManufacturers } from './collectionManufacturers.js';
 import { alphabetical, byName } from '../lib/collectionOrder.js';
 import { collectionPeriods } from '../lib/collectionPeriod.js';
+import { captureIdentity } from './captureIdentity.js';
 
 const number = new Intl.NumberFormat('fr-FR');
 const date = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' });
 const tabs = [['stats', 'Vue d’ensemble'], ['recent', 'Captures'], ['airlines', 'Compagnies'], ['manufacturers', 'Constructeurs'], ['planes', 'Avions'], ['models', 'Modèles'], ['album', 'Catalogue']];
 const distance = km => km == null ? 'Distance indisponible' : number.format(km) + ' km';
 const searchText = value => value.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-const captureName = item => item.flight_number || item.callsign || item.registration || item.aircraft.toUpperCase();
 const aircraftPhotos = {
   a320: ['Airbus A320', 'Patrick Ludolph', 'Lufthansa_Airbus_A320_front-on_view.jpg', 'by/2.0'],
   b738: ['Boeing 737-800', 'AndrewDawes', 'Ryanair_Boeing_737.jpg', 'by-sa/4.0'],
@@ -113,7 +113,7 @@ function Account({ data, onUpdate }) {
 
 function CaptureDetail({ item, onClose }) {
   const dialog = useRef(null);
-  const flight = item.flight_number || item.callsign || item.registration || item.aircraft?.toUpperCase();
+  const { title, callsign } = captureIdentity(item);
   useEffect(() => {
     dialog.current?.showModal();
   }, []);
@@ -125,13 +125,14 @@ function CaptureDetail({ item, onClose }) {
         <header>
           <div>
             <p>Capture du {date.format(new Date(item.captured_at))}</p>
-            <h2 id="capture-detail-title">{flight}</h2>
+            <h2 id="capture-detail-title">{title}</h2>
             <span>{item.airline || item.model || 'Appareil non identifié'}</span>
           </div>
           <button type="button" aria-label="Fermer la fiche" onClick={() => dialog.current?.close()}>×</button>
         </header>
         <div className="capture-detail-route"><CaptureRoute item={item} labeled /></div>
         <dl className="capture-detail-facts">
+          {callsign && <div><dt>Indicatif ADS-B</dt><dd>{callsign}</dd></div>}
           <div><dt>Appareil</dt><dd>{item.model || item.model_code || '—'}</dd></div>
           <div><dt>Immatriculation</dt><dd>{item.registration || '—'}</dd></div>
           {item.reported_route_km != null ?
@@ -162,10 +163,11 @@ function CollectionCard({ item, tab }) {
 }
 
 function CaptureRow({ item, onOpen }) {
-  const flight = captureName(item);
+  const { title, callsign } = captureIdentity(item);
   return <li><button type="button" className="capture-entry" onClick={() => onOpen(item)}>
     <CompanyLogo code={item.airline_code} iata={item.airline_iata} flight={item.flight_number} name={item.airline} />
-    <span className="capture-entry-flight"><strong>{flight}</strong>
+    <span className="capture-entry-flight"><strong>{title}</strong>
+      {callsign && <span>Indicatif ADS-B {callsign}</span>}
       <span>{[item.airline, item.model || item.model_code].filter(Boolean).join(' · ') || 'Appareil non identifié'}</span></span>
     <span className="capture-entry-route"><CaptureRoute item={item} /></span>
     <span className="capture-entry-distance">{item.route_km != null && <strong>{distance(item.route_km)}</strong>}

@@ -99,7 +99,7 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .capture-previous { --capture-color: #7048a6; }
 .aircraft-marker.capture-today, .aircraft-marker.capture-previous { color: #fff; background: var(--capture-color); }
 .capture-check { position: absolute; right: -4px; bottom: -3px; display: grid; place-items: center; width: 15px; height: 15px; border: 1px solid var(--capture-color); border-radius: 50%; background: #fff; color: var(--capture-color); font: 800 11px/1 system-ui; }
-.capture-legend { position: absolute; z-index: 1050; top: 174px; left: 148px; display: grid; gap: 4px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 9px; background: #092431; color: #edf7f8; font-size: 11px; pointer-events: none; }
+.capture-legend { display: grid; gap: 4px; padding: 6px 9px; border: 1px solid var(--line); border-radius: 9px; background: #092431; color: #edf7f8; font-size: 11px; pointer-events: none; }
 .capture-legend span { display: flex; align-items: center; gap: 6px; }
 .capture-legend span::before { content: '✓'; display: grid; place-items: center; width: 13px; height: 13px; border-radius: 50%; background: var(--capture-color); color: #fff; font-size: 10px; }
 .aircraft-marker svg { display: block; width: 22px; height: 22px; fill: currentColor; }
@@ -240,11 +240,19 @@ button:active:not(:disabled) { transform: translateY(1px); }
 .traffic-pages { display: flex; gap: 5px; }
 .traffic-empty { padding: 12px 2px; }
 
-.collection-launch, .capture-row button, .capture-collection {
+.collection-launch, .collection-tools button, .capture-row button, .capture-collection {
   display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 6px 10px;
   border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--mint); font-size: 12px; font-weight: 750;
 }
-.collection-launch { position: absolute; z-index: 1050; top: 174px; left: 18px; box-shadow: var(--shadow); border-radius: 12px; background: #092431; }
+.collection-tools { position: absolute; z-index: 1050; top: 174px; left: 18px; right: 18px; display: flex; flex-wrap: wrap; align-items: start; gap: 7px; pointer-events: none; }
+.collection-tools :is(a, button) { pointer-events: auto; box-shadow: var(--shadow); border-radius: 12px; background: #092431; }
+.collection-tools .discovery-toggle:hover { background: #285065; }
+.app .discovery-toggle[aria-pressed="true"] { background: #ffd288; border-color: #ffd288; color: #282119; }
+.discovery-toggle > span { color: #ffd288; }
+.discovery-toggle[aria-pressed="true"] > span { color: inherit; }
+.aircraft-discovery { position: absolute; top: -4px; right: -4px; display: grid; place-items: center; width: 16px; height: 16px; border: 1px solid #3d2b14; border-radius: 50%; background: #ffd288; color: #282119; font: 800 12px/1 system-ui; }
+.discovery-badges { display: flex; flex-wrap: wrap; gap: 5px; margin: 8px 0; padding: 0; list-style: none; }
+.discovery-badges li { padding: 3px 8px; border: 1px solid #a47842; border-radius: 999px; background: #3b3029; color: #ffe2ad; font-size: .72rem; font-weight: 750; }
 .collection-launch, .capture-collection { text-decoration: none; }
 .collection-launch:hover, .capture-collection:hover, .capture-row button:not(:disabled):hover { background: #285065; }
 .capture-row { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; margin-top: 8px; }
@@ -592,8 +600,7 @@ button.album-map-open { border: 0; min-height: 28px; }
   .radar-actions .ui-icon { width: 15px; height: 15px; }
   .map .leaflet-top.leaflet-left { top: 56px; left: 0; }
   .signal { top: 67px; left: 54px; }
-  .collection-launch { top: 141px; left: 10px; }
-  .capture-legend { top: 141px; left: 130px; }
+  .collection-tools { top: 141px; left: 10px; right: 10px; }
   .map-error { top: 67px; right: 8px; }
   .map-hint { left: 8px; }
   .flight-column { top: auto; right: 8px; bottom: 8px; width: min(410px, calc(100% - 16px)); max-height: 48%; border-radius: 24px 24px 10px 10px; }

@@ -6,7 +6,7 @@ const number = new Intl.NumberFormat('fr-FR');
 const categories = {
   airlines: ['Compagnies', 'OpenFlights · référentiel historique'],
   models: ['Modèles', 'OACI · codes de type'],
-  manufacturers: ['Constructeurs', 'OACI · constructeurs répertoriés']
+  manufacturers: ['Codes constructeur', 'OACI · marques, filiales et coentreprises']
 };
 
 export default function CollectionProgress({ data, tab }) {

@@ -70,6 +70,7 @@
   border-radius: 10px;
 }
 .station-actions button:hover, .station-close:hover { background: #2e5360; }
+.station-actions .discovery-toggle { display: inline-flex; gap: 4px; white-space: nowrap; font-size: .76rem; font-weight: 700; }
 .station-actions .station-rotation {
   display: inline-flex;
   gap: 6px;
@@ -223,4 +224,7 @@
   .radar-actions .station-launch svg { display: none; }
 }
 @media (max-width: 375px) { .station-passages-toggle span { display: none; } }
+@media (max-width: 480px) {
+  .station-actions:has(.discovery-toggle) .station-rotation span { display: none; }
+}
 @media (prefers-reduced-motion: reduce) { .station-ticket { animation: none; } }
